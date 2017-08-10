@@ -1,0 +1,11 @@
+Primer design + Order/Receive
+Parts Creation (PCR + Extraction)
+Homology Assembly
+Yeast Culture
+DNA prep + e.coli transformation
+e.coli culture + extraction
+Sequencing - Plate preparation
+Sequencing - result analysis
+Phusion PCR
+Yeast Miniprep (linked to E. coli transformation)
+CRISPR
