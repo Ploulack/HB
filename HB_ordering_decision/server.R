@@ -19,7 +19,7 @@ shinyServer(function(input, output) {
         #have the full dataframe imported.
         output$lab_steps <- renderUI({
                 checkboxGroupInput(inputId = "lab_steps",
-                                   label = "Select steps of your protocol",
+                                   label = "Select steps that would be cut with ordering",
                                    choiceNames = lab_steps,
                                    choiceValues = seq_along(lab_steps))
         })
@@ -30,5 +30,6 @@ shinyServer(function(input, output) {
                         summarise(avg_lab_days = (sum(min_time) + sum(max_time)) / (24*2),
                                   researcher_hrs = sum(researcher_time))
         })
+        
         
 })
