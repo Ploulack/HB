@@ -7,16 +7,29 @@ shinyUI(fluidPage(
         # Application title
         titlePanel("Assemble vs Ordering"),
         
-        # Sidebar with a slider input for number of bins 
         sidebarLayout(
                 sidebarPanel(
-                        uiOutput("lab_steps")
+                        checkboxGroupInput(inputId = "lab_steps",
+                                           label = "Select steps that would be cut with ordering",
+                                           choiceNames = step_values$`Assembly step`,
+                                           choiceValues = seq_along(step_values$`Assembly step`)),
+                        
+                        selectInput(inputId = "position",
+                                    label = "What's your position?",
+                                    choices = hr_costs$Position),
+                        
+                        selectInput(inputId = "complexity",
+                                    label = "What's your assembly complexity?",
+                                    choices = dna_costs$complexity)
+                        
                 ),
                 
-                # Show a plot of the generated distribution
                 mainPanel(
                         titlePanel("Results"),
-                        tableOutput("summary")
+                        h3("Lab delays & costs"),
+                        tableOutput("summary"),
+                        h3("DNA order delays & costs"),
+                        tableOutput("dna")
                 )
         )
 ))
