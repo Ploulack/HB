@@ -38,6 +38,35 @@ tecan_extract <- function(db_file, folder) {
                                                    xml_contents() %>%
                                                    xml_double()
                 ),
-                "Wavelengh" = wavelength)
+                "Wavelength" = wavelength)
         }) %>% set_names(nm = paste0("Batch_", seq_along(.)))
+}
+
+calc_values <- function(list, molar_absorbance, path_length) {
+        
+        list_delta <- list %>% map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%
+                
+                #Substract 1st well, which is water
+                map(~mutate(.x, Delta = Value - Value[1],
+                            Concentration = Delta / (molar_absorbance * path_length)))
+        
+        full_tbl <- list_delta %>%
+                
+                #Bind into single tbl
+                map_dfr(~.x) %>%
+                
+                #Order by Sample label
+                arrange( str_extract(Sample, "[A-Z]")   ,as.integer( str_extract(Sample, "\\d+")))
+        
+        results <- map(list_delta, pull, var = Delta) %>%
+                as_tibble() %>%
+                mutate(Sample =filter(full_tbl, Wavelength == 260) %>%
+                               pull(Sample),
+                       Ratio = Batch_1 / Batch_2,
+                       Concentration = filter(full_tbl, Wavelength == 260) %>%
+                               pull(var = Concentration)) %>%
+                select(-starts_with("Batch"))
+        
+        list("Table" = full_tbl, "Results" = results)
+        
 }
