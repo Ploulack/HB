@@ -29,3 +29,5 @@ Tecan/.httr-oauth
 *.html
 
 *.Rmd
+
+Tecan/.Rhistory
