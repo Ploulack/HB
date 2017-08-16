@@ -11,26 +11,30 @@ file_date <- function(db_path) {
 }
 
 is_kinetic <- function(xml_file) {
-        xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
+        is_kinetic <- xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
                 xml_attr("Name") %>%
                 as.character() %>%
                 str_detect("Kinetic") %>%
                 any()
+        
+        is_kinetic
+        
 }
 
 #To do for tecan_extract: separate xml file access and create dedicated subfunction for 260nm & 600nm
-tecan_extract <- function(db_file, folder) {
+#
+dl_tecan_xml <- function(db_file, folder) {
         require(xml2)
-        
         local_ <- paste0(folder,basename(db_file))
         drop_get(db_file, local_file = local_, overwrite = TRUE)
+        tecan_xml <- read_xml(local_)
+        tecan_xml
+}
+
+tecan_extract <- function(db_file, folder) {
+        tecan <- dl_tecan_xml(db_file, folder)
         
-        tecan<- read_xml(local_)
-        
-        #Test if it's a 600nm Tecan run
-        if (is_kinetic(tecan) ) return("File is for a 600nm test.")
-        
-        
+
         #Get the Data which is in the Elements "Section", 
         
         data <- map(xml_find_all(tecan, "Section"), function(x) {
@@ -50,6 +54,8 @@ tecan_extract <- function(db_file, folder) {
                 ),
                 "Wavelength" = wavelength)
         }) %>% set_names(nm = paste0("Batch_", seq_along(.)))
+        
+        list("data" = data, "kinetic" = is_kinetic(tecan))
 }
 
 calc_values <- function(list, molar_absorbance, path_length) {

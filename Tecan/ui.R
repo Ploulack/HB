@@ -11,7 +11,7 @@ shinyUI(navbarPage("HB lab",
                                               "Path Length",
                                               value = .19,
                                               placeholder = "in cm"),
-                                    selectInput("files", "Select from latest Tecan Files",
+                                    selectInput("file", "Select from latest Tecan Files",
                                                    choices = list("Waiting from dropbox", "B")),
                                     tableOutput("summary")
                             ),

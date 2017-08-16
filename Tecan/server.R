@@ -21,50 +21,73 @@ files <- db_folder$entries %>%
         arrange(desc(exp_date))
 
 experiment <- reactiveValues()
-#experiment$raw <- tecan_extract(files$path[1], "temp/")
 
 
 shinyServer(function(session, input, output) {
         #Fill the select file input with the files's dates as names and path as values
-        updateSelectInput(session, "files",
+        updateSelectInput(session, "file",
                           choices = files$path %>%
                                   set_names(files$exp_date))
         
-        observeEvent(input$files, {
+        observeEvent(input$file, {
                 #Prevent re-download from dropbox when the select files input is initialized or updated, 
-                if (input$files %in% c("Waiting from dropbox")) return()
+                if (input$file %in% c("Waiting from dropbox")) return()
                 
-                experiment$raw <- tecan_extract(input$files, "temp/")
-                if (experiment$raw == "File is for a 600nm test.") {
-                        showModal(modalDialog(
-                                title = "Ooopps that's a 600nm file",
-                                "Please use another file"))
-                } else { experiment$go <- Sys.time() } 
+                experiment$raw <- tecan_extract(input$file, "temp/")
+                # if (experiment$raw == "File is for a 600nm test.") {
+                #         showModal(modalDialog(
+                #                 title = "Ooopps that's a 600nm file",
+                #                 "Please use another file"))
+                # } else { experiment$go <- Sys.time() } 
         })
         
-        observeEvent(c(input$absorbance,input$path, experiment$go),{
-                if (is.null(experiment$raw) ) return()
+        observeEvent(c(input$absorbance,input$path, experiment$raw),{
+                if (is.null(experiment$raw$data) ) return()
+                
                 absorbance <- as.double(input$absorbance)
                 path <- as.double(input$path)
-                experiment$calculated <- calc_values(experiment$raw,
-                                                     absorbance,
-                                                     path)
+                
+                if (!experiment$raw$kinetic) {
+                        experiment$calculated <-calc_values(experiment$raw$data,
+                                                             absorbance,
+                                                             path)
+                }
+                
                 output$summary <- renderTable({
-                        experiment$calculated$Results
+                        if (!experiment$raw$kinetic) {
+                                experiment$calculated$Results
+                        } else {
+                                experiment$raw$data$Batch_1$Measures
+                        }
                 }, digits = 2)
                 
                 output$hist <- renderPlot({
-                        ggplot(experiment$calculated$Results) +
-                                aes(x = factor(Sample, levels = Sample),
-                                    y = Concentration,
-                                    fill = Concentration > 5) +
-                                geom_bar(stat = "identity") +
-                                theme(legend.position= c(.9,.9))
+                        if (!experiment$raw$kinetic) {
+                                ggplot(experiment$calculated$Results) +
+                                        aes(x = factor(Sample, levels = Sample),
+                                            y = Concentration,
+                                            fill = Concentration > 5) +
+                                        geom_bar(stat = "identity") +
+                                        theme(legend.position= c(.9,.9)) +
+                                        scale_x_discrete("Samples")
+                        } else {
+                                ggplot(experiment$raw$data$Batch_1$Measures) +
+                                        aes(x = factor(Sample, levels = Sample),
+                                            y = Value,
+                                            fill = Value > 5) +
+                                        geom_bar(stat = "identity") +
+                                        theme(legend.position= c(.9,.9)) +
+                                        scale_x_discrete("Samples")
+                        }
+                        
                 })
                 
-                output$batch <- renderDataTable({
-                        experiment$calculated$Table
-                })
+                if (!experiment$raw$kinetic) {
+                        output$batch <- renderDataTable({
+                                experiment$calculated$Table
+                        })
+                }
+                
         })
         
         
