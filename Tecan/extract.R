@@ -1,6 +1,3 @@
-library(rdrop2)
-library(lubridate)
-library(stringr)
 
 #Extracte Dates from Dropbox list of files
 
@@ -13,15 +10,28 @@ file_date <- function(db_path) {
                 ymd_hms() %>% force_tz("America/Montreal")
 }
 
+is_kinetic <- function(xml_file) {
+        xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
+                xml_attr("Name") %>%
+                as.character() %>%
+                str_detect("Kinetic") %>%
+                any()
+}
+
+#To do for tecan_extract: separate xml file access and create dedicated subfunction for 260nm & 600nm
 tecan_extract <- function(db_file, folder) {
-        require(xml2); require(dplyr)
+        require(xml2)
         
-        local_file <- paste0(folder,basename(file))
-        drop_get(file, local_file = local_file, overwrite = TRUE)
-        tecan<- read_xml(local_file)
+        local_ <- paste0(folder,basename(db_file))
+        drop_get(db_file, local_file = local_, overwrite = TRUE)
+        
+        tecan<- read_xml(local_)
+        
+        #Test if it's a 600nm Tecan run
+        if (is_kinetic(tecan) ) return("File is for a 600nm test.")
+        
         
         #Get the Data which is in the Elements "Section", 
-        #plates <- xml_find_all(tecan, "Section") %>% xml_attr("Name")
         
         data <- map(xml_find_all(tecan, "Section"), function(x) {
                 nodes <- xml_find_all(x,"Data") %>%
