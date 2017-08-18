@@ -10,16 +10,25 @@ file_date <- function(db_path) {
                 ymd_hms() %>% force_tz("America/Montreal")
 }
 
+# is_kinetic <- function(xml_file) {
+#         is_kinetic <- xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
+#                 xml_attr("Name") %>%
+#                 as.character() %>%
+#                 str_detect("Wavelength") %>%
+#                 any()
+#         
+#         is_kinetic
+# }
+
 is_kinetic <- function(xml_file) {
         is_kinetic <- xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
-                xml_attr("Name") %>%
-                as.character() %>%
-                str_detect("Kinetic") %>%
+                xml_attrs() %>%
+                keep(~.x["Name"] == "Wavelength") %>%
+                str_detect("600") %>%
                 any()
-        
         is_kinetic
-        
 }
+
 
 #To do for tecan_extract: separate xml file access and create dedicated subfunction for 260nm & 600nm
 #
@@ -32,12 +41,14 @@ dl_tecan_xml <- function(db_file, folder) {
 }
 
 tecan_extract <- function(db_file, folder) {
+        print(db_file)
         tecan <- dl_tecan_xml(db_file, folder)
         
 
         #Get the Data which is in the Elements "Section", 
         
         data <- map(xml_find_all(tecan, "Section"), function(x) {
+                
                 nodes <- xml_find_all(x,"Data") %>%
                         xml_find_all("Well")
                 

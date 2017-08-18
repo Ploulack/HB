@@ -9,7 +9,7 @@ source("extract.R")
 source("constants.R")
 
 #Get dropbox folder meta data
-db_folder <- drop_delta(path_prefix = "/HB/Tecan Data")
+db_folder <- drop_delta(path_prefix = "/HB/Tecan")
 
 #Extract only files (not dirs) and tidy the date from file name
 files <- db_folder$entries %>%
@@ -32,13 +32,17 @@ shinyServer(function(session, input, output) {
         observeEvent(input$file, {
                 #Prevent re-download from dropbox when the select files input is initialized or updated, 
                 if (input$file %in% c("Waiting from dropbox")) return()
-                
-                experiment$raw <- tecan_extract(input$file, "temp/")
-                # if (experiment$raw == "File is for a 600nm test.") {
-                #         showModal(modalDialog(
-                #                 title = "Ooopps that's a 600nm file",
-                #                 "Please use another file"))
-                # } else { experiment$go <- Sys.time() } 
+                else if (input$file == "") {
+                        showModal(modalDialog(
+                                title = "No File",
+                                paste0("There's no files in specified dropbox folder: ",
+                                       "/HB/Tecan")
+                                )
+                        )
+                } else {
+                        
+                        experiment$raw <- tecan_extract(input$file, "temp/")
+                }
         })
         
         observeEvent(c(input$absorbance,input$path, experiment$raw),{

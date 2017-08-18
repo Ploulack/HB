@@ -31,3 +31,9 @@ Tecan/.httr-oauth
 *.Rmd
 
 Tecan/.Rhistory
+
+Scripts/.httr-oauth
+
+Tecan/rsconnect/shinyapps.io/ploulack/tecan.dcf
+
+*.dcf
