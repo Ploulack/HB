@@ -14,27 +14,32 @@ dropbox_dir <- "/HB/Tecan"
 
 experiment <- reactiveValues()
 db_files <- reactiveValues()
+#choiceFiles <- reactiveValues()
 
 shinyServer(function(session, input, output) {
         
         #Fill the select file input with the files's dates as names and path as values
-        
-        observeEvent(input$refresh, {
+        choiceFiles <- reactive({
+                input$refresh
                 db_files <- get_ordered_filenames_from_db_dir(dropbox_dir)
-                updateSelectInput(session, "file",
-                                  choices = db_files$path %>%
-                                          set_names(db_files$exp_date),
-                                  selected = input$file)
+                db_files$path %>%
+                        set_names(db_files$exp_date)
+        })
+        
+        observeEvent(c(choiceFiles, input$refresh), {
+               choices <- choiceFiles()
+                 updateSelectInput(session, "file",
+                                  choices = choices,
+                                  selected = ifelse(input$refresh == 0,
+                                                    head(choices,1),
+                                                    input$file)
+                                  )
+                
         })
       
           observeEvent(input$file, {
                 #Prevent re-download from dropbox when the select files input is initialized or updated, 
-                if (input$file %in% c("Waiting from dropbox")) {
-                        db_files <- get_ordered_filenames_from_db_dir(dropbox_dir)
-                        updateSelectInput(session, "file",
-                                          choices = db_files$path %>%
-                                                  set_names(db_files$exp_date))
-                        return()}
+                if (input$file %in% c("Waiting from dropbox")) return()
                 else if (input$file == "") {
                         showModal(modalDialog(
                                 title = "No File",
@@ -94,6 +99,10 @@ shinyServer(function(session, input, output) {
                 if (!experiment$raw$kinetic) {
                         output$batch <- renderDataTable({
                                 experiment$calculated$Table
+                        })
+                } else {
+                        output$batch <- renderDataTable({
+                                NULL
                         })
                 }
                 
