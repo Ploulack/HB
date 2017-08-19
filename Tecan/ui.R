@@ -11,8 +11,10 @@ shinyUI(navbarPage("HB lab",
                                               "Path Length",
                                               value = .19,
                                               placeholder = "in cm"),
+                                    actionButton("refresh",
+                                                 label = "Check for new Tecan files"),
                                     selectInput("file", "Select from latest Tecan Files",
-                                                   choices = list("Waiting from dropbox", "B")),
+                                                   choices = list("Waiting from dropbox")),
                                     tableOutput("summary")
                             ),
                             mainPanel(

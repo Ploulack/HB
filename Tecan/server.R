@@ -8,30 +8,33 @@ library(rdrop2)
 source("extract.R")
 source("constants.R")
 
-#Get dropbox folder meta data
-db_folder <- drop_delta(path_prefix = "/HB/Tecan")
+dropbox_dir <- "/HB/Tecan"
 
-#Extract only files (not dirs) and tidy the date from file name
-files <- db_folder$entries %>%
-        filter(! as.logical(is_dir)) %>%
-        select(path) %>% 
-        mutate(exp_date = file_date(path),
-               path = as.character(path)) %>%
-        as_tibble() %>%
-        arrange(desc(exp_date))
+#files <- get_ordered_filenames_from_db_dir(dropbox_dir)
 
 experiment <- reactiveValues()
-
+db_files <- reactiveValues()
 
 shinyServer(function(session, input, output) {
-        #Fill the select file input with the files's dates as names and path as values
-        updateSelectInput(session, "file",
-                          choices = files$path %>%
-                                  set_names(files$exp_date))
         
-        observeEvent(input$file, {
+        #Fill the select file input with the files's dates as names and path as values
+        
+        observeEvent(input$refresh, {
+                db_files <- get_ordered_filenames_from_db_dir(dropbox_dir)
+                updateSelectInput(session, "file",
+                                  choices = db_files$path %>%
+                                          set_names(db_files$exp_date),
+                                  selected = input$file)
+        })
+      
+          observeEvent(input$file, {
                 #Prevent re-download from dropbox when the select files input is initialized or updated, 
-                if (input$file %in% c("Waiting from dropbox")) return()
+                if (input$file %in% c("Waiting from dropbox")) {
+                        db_files <- get_ordered_filenames_from_db_dir(dropbox_dir)
+                        updateSelectInput(session, "file",
+                                          choices = db_files$path %>%
+                                                  set_names(db_files$exp_date))
+                        return()}
                 else if (input$file == "") {
                         showModal(modalDialog(
                                 title = "No File",
@@ -41,7 +44,7 @@ shinyServer(function(session, input, output) {
                         )
                 } else {
                         
-                        experiment$raw <- tecan_extract(input$file, "temp/")
+                        experiment$raw <- tecan_extract(input$file)
                 }
         })
         
@@ -70,18 +73,20 @@ shinyServer(function(session, input, output) {
                                 ggplot(experiment$calculated$Results) +
                                         aes(x = factor(Sample, levels = Sample),
                                             y = Concentration,
-                                            fill = Concentration > 5) +
+                                            fill = (Ratio > 1.7 & Ratio <2.0)) +
                                         geom_bar(stat = "identity") +
                                         theme(legend.position= c(.9,.9)) +
-                                        scale_x_discrete("Samples")
+                                        scale_x_discrete("Samples") +
+                                        scale_fill_discrete(limits = c('FALSE', 'TRUE'))
                         } else {
                                 ggplot(experiment$raw$data$Batch_1$Measures) +
                                         aes(x = factor(Sample, levels = Sample),
                                             y = Value,
-                                            fill = Value > 5) +
+                                            fill = Value > .2) +
                                         geom_bar(stat = "identity") +
                                         theme(legend.position= c(.9,.9)) +
-                                        scale_x_discrete("Samples")
+                                        scale_x_discrete("Samples") +
+                                        scale_fill_discrete(limits = c('FALSE', 'TRUE'))
                         }
                         
                 })
