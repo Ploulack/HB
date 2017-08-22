@@ -37,3 +37,9 @@ Scripts/.httr-oauth
 Tecan/rsconnect/shinyapps.io/ploulack/tecan.dcf
 
 *.dcf
+
+Genome Alignment/irizary.R
+
+Scripts/.Rhistory
+
+Tecan/hyasynth_token.rds

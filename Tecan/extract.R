@@ -20,31 +20,32 @@ is_kinetic <- function(xml_file) {
         is_kinetic
 }
 
-get_ordered_filenames_from_db_dir <- function(db_folder) {
+get_ordered_filenames_from_db_dir <- function(db_folder, token) {
         #Todo: use the delta method to only get the new file
         #Get dropbox folder meta data
         ##Todo: add directory check
-        drop_dir(db_folder) %>%
+        drop_dir(db_folder, dtoken = token, n = 10) %>%
                 select(path) %>% 
                 mutate(exp_date = file_date(path),
                        path = as.character(path)) %>%
                 as_tibble() %>%
-                arrange(desc(exp_date))
+                arrange(desc(exp_date)) %>%
+                head(30)
 }
 
-dl_tecan_xml <- function(db_file, folder) {
+dl_tecan_xml <- function(db_file, folder, token) {
         require(xml2)
         local_ <- paste0(folder,basename(db_file))
-        drop_get(db_file, local_file = local_, overwrite = TRUE)
+        drop_get(db_file, local_file = local_, overwrite = TRUE, dtoken = token)
         tecan_xml <- read_xml(local_)
         file.remove(local_)
         tecan_xml
 }
 
-tecan_extract <- function(db_file) {
+tecan_extract <- function(db_file, token) {
         folder <- "temp/"
         
-        tecan <- dl_tecan_xml(db_file, folder)
+        tecan <- dl_tecan_xml(db_file, folder, token)
         
 
         #Get the Data which is in the Elements "Section", 

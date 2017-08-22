@@ -8,7 +8,7 @@ library(rdrop2)
 source("extract.R")
 source("constants.R")
 
-dropbox_dir <- "/HB/Tecan"
+dropbox_dir <- "/TECAN"
 
 #files <- get_ordered_filenames_from_db_dir(dropbox_dir)
 
@@ -21,7 +21,7 @@ shinyServer(function(session, input, output) {
         #Fill the select file input with the files's dates as names and path as values
         choiceFiles <- reactive({
                 input$refresh
-                db_files <- get_ordered_filenames_from_db_dir(dropbox_dir)
+                db_files <- get_ordered_filenames_from_db_dir(dropbox_dir, token)
                 db_files$path %>%
                         set_names(db_files$exp_date)
         })
@@ -49,7 +49,7 @@ shinyServer(function(session, input, output) {
                         )
                 } else {
                         
-                        experiment$raw <- tecan_extract(input$file)
+                        experiment$raw <- tecan_extract(input$file, token)
                 }
         })
         
