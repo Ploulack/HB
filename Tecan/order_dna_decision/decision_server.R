@@ -1,5 +1,3 @@
-library(shiny)
-library(tidyverse)
 
 decision <- function(input, output, session) {
         

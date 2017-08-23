@@ -1,6 +1,3 @@
-library(shiny)
-# source("import.R", local = TRUE)
-
 
 decisionUI <- function(id) {
         #Create a function provided the id

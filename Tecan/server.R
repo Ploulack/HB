@@ -24,8 +24,6 @@ function(session, input, output) {
                 }
         })
         
-        
-        
         #TEKAN
         #Fill the select file input with the files's dates as names and path as values
         choiceFiles <- reactive({
