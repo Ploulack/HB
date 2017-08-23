@@ -45,3 +45,10 @@ Scripts/.Rhistory
 Tecan/hyasynth_token.rds
 
 Test/.Rhistory
+*.Rhistory
+shiny_module_test*
+Scripts*
+Genome Alignment*
+Tecan/constants.R
+
+Tecan/constants.R
