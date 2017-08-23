@@ -1,6 +1,11 @@
 library(shiny)
 
-shinyUI(navbarPage("HB lab", 
+#TEST IF CAN BE INSERTED IN TABPANEL CODE
+source("order_dna_decision/decision_ui.R")
+
+
+navbarPage("HB lab",
+           tabsetPanel(id = "tab",
                    tabPanel("Tecan",
                             sidebarPanel(
                                     textInput("absorbance",
@@ -14,7 +19,7 @@ shinyUI(navbarPage("HB lab",
                                     actionButton("refresh",
                                                  label = "Check for new Tecan files"),
                                     selectInput("file", "Select from latest Tecan Files",
-                                                   choices = list("Waiting from dropbox")),
+                                                choices = list("Waiting from dropbox")),
                                     tableOutput("summary")
                             ),
                             mainPanel(
@@ -24,5 +29,9 @@ shinyUI(navbarPage("HB lab",
                                     ),
                                     dataTableOutput("batch")
                             )
-                            )
-                   ))
+                   ),
+                   tabPanel("Order Decision Tool",
+                            decisionUI("decision")
+                   )
+           )
+)
