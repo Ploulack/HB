@@ -1,6 +1,6 @@
-library(shiny)
-library(tidyverse)
+suppressPackageStartupMessages(library(tidyverse))
 library(lubridate)
+library(shiny)
 library(stringr)
 library(rdrop2)
 
@@ -10,14 +10,29 @@ source("constants.R")
 
 dropbox_dir <- "/TECAN"
 
-#files <- get_ordered_filenames_from_db_dir(dropbox_dir)
-
 experiment <- reactiveValues()
 db_files <- reactiveValues()
-#choiceFiles <- reactiveValues()
 
-shinyServer(function(session, input, output) {
+
+function(session, input, output) {
         
+        #DECISION TOOL
+        observeEvent(input$tab, {
+                if (input$tab == "Order Decision Tool" ) {
+                        source("order_dna_decision/decision_server.R")
+                        callModule(decision, "decision")
+                }
+        })
+        
+        # MS
+        observeEvent(input$tab, {
+                if (input$tab == "MS Analysis") {
+                        source("MS/MS_server.R")
+                        callModule(MS_server, "MS")
+                }
+        })
+        
+        #TEKAN
         #Fill the select file input with the files's dates as names and path as values
         choiceFiles <- reactive({
                 input$refresh
@@ -27,17 +42,17 @@ shinyServer(function(session, input, output) {
         })
         
         observeEvent(c(choiceFiles, input$refresh), {
-               choices <- choiceFiles()
-                 updateSelectInput(session, "file",
+                choices <- choiceFiles()
+                updateSelectInput(session, "file",
                                   choices = choices,
                                   selected = ifelse(input$refresh == 0,
                                                     head(choices,1),
                                                     input$file)
-                                  )
+                )
                 
         })
-      
-          observeEvent(input$file, {
+        
+        observeEvent(input$file, {
                 #Prevent re-download from dropbox when the select files input is initialized or updated, 
                 if (input$file %in% c("Waiting from dropbox")) return()
                 else if (input$file == "") {
@@ -45,7 +60,7 @@ shinyServer(function(session, input, output) {
                                 title = "No File",
                                 paste0("There's no files in specified dropbox folder: ",
                                        "/HB/Tecan")
-                                )
+                        )
                         )
                 } else {
                         
@@ -61,8 +76,8 @@ shinyServer(function(session, input, output) {
                 
                 if (!experiment$raw$kinetic) {
                         experiment$calculated <-calc_values(experiment$raw$data,
-                                                             absorbance,
-                                                             path)
+                                                            absorbance,
+                                                            path)
                 }
                 
                 output$summary <- renderTable({
@@ -107,10 +122,4 @@ shinyServer(function(session, input, output) {
                 }
                 
         })
-        
-        
-        
-       
-        
-        
-} )
+}

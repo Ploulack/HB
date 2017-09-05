@@ -43,3 +43,23 @@ Genome Alignment/irizary.R
 Scripts/.Rhistory
 
 Tecan/hyasynth_token.rds
+
+Test/.Rhistory
+*.Rhistory
+shiny_module_test*
+Scripts*
+Genome Alignment*
+Tecan/constants.R
+
+Tecan/constants.R
+
+*.xlsx
+
+*.png
+
+MS/simple_barplot_explore.R
+
+Tecan/MS/MS_values.R
+
+*.rds
+*test_*
