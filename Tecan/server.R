@@ -1,8 +1,9 @@
-library(shiny)
-library(tidyverse)
+suppressPackageStartupMessages(library(tidyverse))
 library(lubridate)
+library(shiny)
 library(stringr)
 library(rdrop2)
+
 
 source("extract.R")
 source("constants.R")
@@ -12,15 +13,22 @@ dropbox_dir <- "/TECAN"
 experiment <- reactiveValues()
 db_files <- reactiveValues()
 
-#source("order_dna_decision/import_dna_decision_data.R")
 
 function(session, input, output) {
         
-        #DECISION
+        #DECISION TOOL
         observeEvent(input$tab, {
                 if (input$tab == "Order Decision Tool" ) {
                         source("order_dna_decision/decision_server.R")
                         callModule(decision, "decision")
+                }
+        })
+        
+        # MS
+        observeEvent(input$tab, {
+                if (input$tab == "MS Analysis") {
+                        source("MS/MS_server.R")
+                        callModule(MS_server, "MS")
                 }
         })
         

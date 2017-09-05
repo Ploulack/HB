@@ -2,6 +2,7 @@ library(shiny)
 
 #TEST IF CAN BE INSERTED IN TABPANEL CODE
 source("order_dna_decision/decision_ui.R")
+source("MS/MS_ui.R")
 
 
 navbarPage("HB lab",
@@ -32,6 +33,8 @@ navbarPage("HB lab",
                    ),
                    tabPanel("Order Decision Tool",
                             decisionUI("decision")
-                   )
+                   ),
+                   tabPanel("MS Analysis",
+                           MS_ui("MS"))
            )
 )
