@@ -6,7 +6,7 @@ library(rdrop2)
 
 
 source("extract.R")
-source("constants.R")
+# source("constants.R")
 
 dropbox_dir <- "/TECAN"
 

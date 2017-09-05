@@ -3,6 +3,7 @@ decision <- function(input, output, session) {
         
         #Get data from Google 'Assembly Cost'
         source("order_dna_decision/import_dna_decision_data.R")
+        source("order_dna_decision/decision_values.R")
         assemply_sheets <- get_assembly_costs(url)
         step_values <- assemply_sheets$steps
         hr_costs <- assemply_sheets$HR
