@@ -1,4 +1,4 @@
-MS_server <- shinyServer(function(input, output, session) {
+MS_server <- function(input, output, session) {
         library(googledrive)
         library(httr)
         library(readxl)
@@ -44,7 +44,7 @@ MS_server <- shinyServer(function(input, output, session) {
         output$token <- renderTable ({
                 validate(
                         need(!is.null(access_token()),
-                                message = "Click Authorize")
+                                message = "Click Authorize (this also resets other tabs)")
                 )
                 
                 saveRDS(access_token(), file = "token.rds")
@@ -80,4 +80,4 @@ MS_server <- shinyServer(function(input, output, session) {
                 
                 norco_summary
         })
-})
+}

@@ -4,122 +4,130 @@ library(shiny)
 library(stringr)
 library(rdrop2)
 
-
-source("extract.R")
-# source("constants.R")
-
-dropbox_dir <- "/TECAN"
-
-experiment <- reactiveValues()
-db_files <- reactiveValues()
+# source("extract.R")
+# source("tecan_values.R")
+# 
+# dropbox_dir <- "/TECAN"
+# 
+# experiment <- reactiveValues()
+# db_files <- reactiveValues()
 
 
 function(session, input, output) {
         
         #DECISION TOOL
-        observeEvent(input$tab, {
-                if (input$tab == "Order Decision Tool" ) {
-                        source("order_dna_decision/decision_server.R")
-                        callModule(decision, "decision")
-                }
-        })
+        observeEvent(input$decision_go, {
+                source("order_dna_decision/decision_server.R")
+                callModule(decision, "decision")
+                })
         
         # MS
-        observeEvent(input$tab, {
-                if (input$tab == "MS Analysis") {
-                        source("MS/MS_server.R")
-                        callModule(MS_server, "MS")
-                }
+        source("MS/MS_server.R")
+        callModule(MS_server, "MS")
+        
+        #Switch back to the MS tab after authentification
+        #(which reloads a new session)
+        observeEvent(session$clientData$url_search, {
+                query <- parseQueryString(session$clientData$url_search)
+                if (length(query$code) > 0) {
+                        updateTabsetPanel(session,
+                                inputId = "tab",
+                                selected = "MS Analysis")
+                }  
         })
         
         #TEKAN
-        #Fill the select file input with the files's dates as names and path as values
-        choiceFiles <- reactive({
-                input$refresh
-                db_files <- get_ordered_filenames_from_db_dir(dropbox_dir, token)
-                db_files$path %>%
-                        set_names(db_files$exp_date)
+        observeEvent(input$tecan_go, {
+                source("tecan/tecan_server.R")
+                callModule(tecan_server, "Tecan")
         })
         
-        observeEvent(c(choiceFiles, input$refresh), {
-                choices <- choiceFiles()
-                updateSelectInput(session, "file",
-                                  choices = choices,
-                                  selected = ifelse(input$refresh == 0,
-                                                    head(choices,1),
-                                                    input$file)
-                )
-                
-        })
-        
-        observeEvent(input$file, {
-                #Prevent re-download from dropbox when the select files input is initialized or updated, 
-                if (input$file %in% c("Waiting from dropbox")) return()
-                else if (input$file == "") {
-                        showModal(modalDialog(
-                                title = "No File",
-                                paste0("There's no files in specified dropbox folder: ",
-                                       "/HB/Tecan")
-                        )
-                        )
-                } else {
-                        
-                        experiment$raw <- tecan_extract(input$file, token)
-                }
-        })
-        
-        observeEvent(c(input$absorbance,input$path, experiment$raw),{
-                if (is.null(experiment$raw$data) ) return()
-                
-                absorbance <- as.double(input$absorbance)
-                path <- as.double(input$path)
-                
-                if (!experiment$raw$kinetic) {
-                        experiment$calculated <-calc_values(experiment$raw$data,
-                                                            absorbance,
-                                                            path)
-                }
-                
-                output$summary <- renderTable({
-                        if (!experiment$raw$kinetic) {
-                                experiment$calculated$Results
-                        } else {
-                                experiment$raw$data$Batch_1$Measures
-                        }
-                }, digits = 2)
-                
-                output$hist <- renderPlot({
-                        if (!experiment$raw$kinetic) {
-                                ggplot(experiment$calculated$Results) +
-                                        aes(x = factor(Sample, levels = Sample),
-                                            y = Concentration,
-                                            fill = (Ratio > 1.7 & Ratio <2.0)) +
-                                        geom_bar(stat = "identity") +
-                                        theme(legend.position= c(.9,.9)) +
-                                        scale_x_discrete("Samples") +
-                                        scale_fill_discrete(limits = c('FALSE', 'TRUE'))
-                        } else {
-                                ggplot(experiment$raw$data$Batch_1$Measures) +
-                                        aes(x = factor(Sample, levels = Sample),
-                                            y = Value,
-                                            fill = Value > .2) +
-                                        geom_bar(stat = "identity") +
-                                        theme(legend.position= c(.9,.9)) +
-                                        scale_x_discrete("Samples") +
-                                        scale_fill_discrete(limits = c('FALSE', 'TRUE'))
-                        }
-                        
-                })
-                
-                if (!experiment$raw$kinetic) {
-                        output$batch <- renderDataTable({
-                                experiment$calculated$Table
-                        })
-                } else {
-                        output$batch <- renderDataTable({
-                                NULL
-                        })
-                }
-                
-        })
+        # choiceFiles <- reactive({
+        #         input$refresh
+        #         db_files <- get_ordered_filenames_from_db_dir(dropbox_dir, token)
+        #         db_files$path %>%
+        #                 set_names(db_files$exp_date)
+        # })
+        # 
+        # observeEvent(c(choiceFiles, input$refresh), {
+        #         choices <- choiceFiles()
+        #         updateSelectInput(session, "file",
+        #                           choices = choices,
+        #                           selected = ifelse(input$refresh == 0,
+        #                                             head(choices,1),
+        #                                             input$file)
+        #         )
+        #         
+        # })
+        # 
+        # observeEvent(input$file, {
+        #         #Prevent re-download from dropbox when the select files input is initialized or updated, 
+        #         if (input$file %in% c("Waiting from dropbox")) return()
+        #         else if (input$file == "") {
+        #                 showModal(modalDialog(
+        #                         title = "No File",
+        #                         paste0("There's no files in specified dropbox folder: ",
+        #                                "/HB/Tecan")
+        #                 )
+        #                 )
+        #         } else {
+        #                 
+        #                 experiment$raw <- tecan_extract(input$file, token)
+        #         }
+        # })
+        # 
+        # observeEvent(c(input$absorbance,input$path, experiment$raw),{
+        #         if (is.null(experiment$raw$data) ) return()
+        #         
+        #         absorbance <- as.double(input$absorbance)
+        #         path <- as.double(input$path)
+        #         
+        #         if (!experiment$raw$kinetic) {
+        #                 experiment$calculated <-calc_values(experiment$raw$data,
+        #                                                     absorbance,
+        #                                                     path)
+        #         }
+        #         
+        #         output$summary <- renderTable({
+        #                 if (!experiment$raw$kinetic) {
+        #                         experiment$calculated$Results
+        #                 } else {
+        #                         experiment$raw$data$Batch_1$Measures
+        #                 }
+        #         }, digits = 2)
+        #         
+        #         output$hist <- renderPlot({
+        #                 if (!experiment$raw$kinetic) {
+        #                         ggplot(experiment$calculated$Results) +
+        #                                 aes(x = factor(Sample, levels = Sample),
+        #                                     y = Concentration,
+        #                                     fill = (Ratio > 1.7 & Ratio <2.0)) +
+        #                                 geom_bar(stat = "identity") +
+        #                                 theme(legend.position= c(.9,.9)) +
+        #                                 scale_x_discrete("Samples") +
+        #                                 scale_fill_discrete(limits = c('FALSE', 'TRUE'))
+        #                 } else {
+        #                         ggplot(experiment$raw$data$Batch_1$Measures) +
+        #                                 aes(x = factor(Sample, levels = Sample),
+        #                                     y = Value,
+        #                                     fill = Value > .2) +
+        #                                 geom_bar(stat = "identity") +
+        #                                 theme(legend.position= c(.9,.9)) +
+        #                                 scale_x_discrete("Samples") +
+        #                                 scale_fill_discrete(limits = c('FALSE', 'TRUE'))
+        #                 }
+        #                 
+        #         })
+        #         
+        #         if (!experiment$raw$kinetic) {
+        #                 output$batch <- renderDataTable({
+        #                         experiment$calculated$Table
+        #                 })
+        #         } else {
+        #                 output$batch <- renderDataTable({
+        #                         NULL
+        #                 })
+        #         }
+        #         
+        # })
 }
