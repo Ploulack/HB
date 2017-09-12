@@ -4,14 +4,6 @@ library(shiny)
 library(stringr)
 library(rdrop2)
 
-# source("extract.R")
-# source("tecan_values.R")
-# 
-# dropbox_dir <- "/TECAN"
-# 
-# experiment <- reactiveValues()
-# db_files <- reactiveValues()
-
 
 function(session, input, output) {
         
@@ -36,10 +28,16 @@ function(session, input, output) {
                 }  
         })
         
-        #TEKAN
+        # TEKAN
         observeEvent(input$tecan_go, {
                 source("tecan/tecan_server.R")
                 callModule(tecan_server, "Tecan")
+        })
+        
+        # GEL
+        observeEvent(input$gel_go, {
+                source("gel/gel_server.R")
+                callModule(gel_server, "Gel")
         })
         
         # choiceFiles <- reactive({

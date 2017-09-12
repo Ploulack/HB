@@ -1,9 +1,8 @@
 tecan_server <- function(input, output, session) {
         
-        source("extract.R")
-        source("tecan_values.R")
-        
-        dropbox_dir <- "/TECAN"
+        source("tecan/tecan_extract.R")
+        source("tecan/tecan_values.R")
+        source("dropbox_helpers.R")
         
         experiment <- reactiveValues()
         db_files <- reactiveValues()
@@ -40,6 +39,17 @@ tecan_server <- function(input, output, session) {
                         
                         experiment$raw <- tecan_extract(input$file, token)
                 }
+        })
+        
+        output$type <- renderText({
+                validate(
+                        need(!is.null(experiment$raw),
+                                message = "Waiting for file...")
+                )
+                if_else(
+                        experiment$raw$kinetic,
+                        "600nm",
+                        "PCR Quantification - 260nm")
         })
         
         observeEvent(c(input$absorbance,input$path, experiment$raw),{

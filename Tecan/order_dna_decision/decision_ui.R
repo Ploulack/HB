@@ -1,7 +1,6 @@
 
 decisionUI <- function(id) {
         #Create a function provided the id
-        
         ns <- NS(id)
         
         wait_msg <- "Waiting from Google..."

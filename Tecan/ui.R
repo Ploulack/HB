@@ -4,6 +4,7 @@ library(shiny)
 source("order_dna_decision/decision_ui.R")
 source("MS/MS_ui.R")
 source("tecan/tecan_ui.R")
+source("gel/gel_ui.R")
 
 
 navbarPage("HB lab",
@@ -18,29 +19,6 @@ navbarPage("HB lab",
                                    tecan_ui("Tecan")
                                    )
                    ),
-                   #          sidebarPanel(
-                   #                  textInput("absorbance",
-                   #                            "Absorbance Coef",
-                   #                            value = 0.02,
-                   #                            placeholder = "in ug / (ml.cm)"),
-                   #                  textInput("path",
-                   #                            "Path Length",
-                   #                            value = .19,
-                   #                            placeholder = "in cm"),
-                   #                  actionButton("refresh",
-                   #                               label = "Check for new Tecan files"),
-                   #                  selectInput("file", "Select from latest Tecan Files",
-                   #                              choices = list("Waiting from dropbox")),
-                   #                  tableOutput("summary")
-                   #          ),
-                   #          mainPanel(
-                   #                  fluidRow(
-                   #                          column(12,
-                   #                                 plotOutput("hist"))
-                   #                  ),
-                   #                  dataTableOutput("batch")
-                   #          )
-                   # ),
                    tabPanel("Order Decision Tool",
                            conditionalPanel(
                                    condition = "input.decision_go == 0",
@@ -48,10 +26,21 @@ navbarPage("HB lab",
                            ),
                            conditionalPanel(
                                    condition = "input.decision_go > 0",
-                                   decisionUI("decision")
+                                   decisionUI("Decision")
                            )
                    ),
                    tabPanel("MS Analysis",
-                           MS_ui("MS"))
+                           MS_ui("MS")
+                   ),
+                   tabPanel("Gel",
+                           conditionalPanel(
+                                   condition = "input.gel_go == 0",
+                                   actionButton("gel_go", "Start Gel viewer")
+                           ),
+                           conditionalPanel(
+                                   condition = "input.gel_go > 0",
+                                   gel_ui("Gel")
+                           )
+                   )
            )
 )

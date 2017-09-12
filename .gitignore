@@ -64,3 +64,9 @@ Tecan/MS/MS_values.R
 *.rds
 *test_*
 Tecan/order_dna_decision/decision_values.R
+
+Tecan/gel/gel_values.R
+
+Tecan/tecan/tecan_values.R
+
+*.jpg

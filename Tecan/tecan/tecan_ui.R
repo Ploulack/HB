@@ -17,6 +17,9 @@ tecan_ui <- function(id) {
                         tableOutput(ns("summary"))
                 ),
                 mainPanel(
+                        titlePanel(
+                                textOutput(ns("type"))
+                        ),
                         fluidRow(
                                 column(12,
                                         plotOutput(ns("hist"))
