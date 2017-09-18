@@ -1,5 +1,5 @@
 
-decision <- function(input, output, session) {
+decision_server <- function(input, output, session) {
         
         #Get data from Google 'Assembly Cost'
         source("order_dna_decision/import_dna_decision_data.R")
@@ -9,15 +9,19 @@ decision <- function(input, output, session) {
         hr_costs <- assemply_sheets$HR
         dna_costs <- assemply_sheets$DNA
         
-        updateCheckboxGroupInput(session, inputId = "lab_steps",
-                                 choiceNames = step_values$`Assembly step`,
-                                 choiceValues = seq_along(step_values$`Assembly step`))
+        observe({
+                print(step_values$`Assembly step`)
+                updateCheckboxGroupInput(session, inputId = "lab_steps",
+                        choiceNames = step_values$`Assembly step`,
+                        choiceValues = seq_along(step_values$`Assembly step`))
+                
+                updateSelectInput(session, inputId = "position",
+                        choices = hr_costs$Position)
+                
+                updateSelectInput(session, inputId = "complexity",
+                        choices = dna_costs$complexity)
+        })
         
-        updateSelectInput(session, inputId = "position",
-                          choices = hr_costs$Position)
-        
-        updateSelectInput(session, inputId = "complexity",
-                          choices = dna_costs$complexity)
         
         output$summary <- renderTable(digits = 1,{
                 position_values <- hr_costs[hr_costs$Position == input$position, ]

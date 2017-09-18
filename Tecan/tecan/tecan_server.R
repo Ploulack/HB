@@ -3,6 +3,7 @@ tecan_server <- function(input, output, session) {
         source("tecan/tecan_extract.R")
         source("tecan/tecan_values.R")
         source("dropbox_helpers.R")
+        source("tecan/tecan_db_server.R")
         
         experiment <- reactiveValues()
         db_files <- reactiveValues()
@@ -36,8 +37,9 @@ tecan_server <- function(input, output, session) {
                         )
                         )
                 } else {
-                        
                         experiment$raw <- tecan_extract(input$file, token)
+                        callModule(tecan_db_server,
+                                id = "Tecan_db")
                 }
         })
         

@@ -14,6 +14,9 @@ is_kinetic <- function(xml_file) {
 
 dl_tecan_xml <- function(db_file, folder, token) {
         require(xml2)
+        if (!dir.exists(folder)) {
+                dir.create(folder)
+        }
         local_ <- paste0(folder,basename(db_file))
         drop_get(db_file, local_file = local_, overwrite = TRUE, dtoken = token)
         tecan_xml <- read_xml(local_)

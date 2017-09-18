@@ -26,7 +26,7 @@ navbarPage("HB lab",
                            ),
                            conditionalPanel(
                                    condition = "input.decision_go > 0",
-                                   decisionUI("Decision")
+                                   decisionUI("decision")
                            )
                    ),
                    tabPanel("MS Analysis",
