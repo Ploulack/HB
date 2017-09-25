@@ -17,3 +17,12 @@ get_assembly_costs <- function(url) {
              "HR" = hr_costs,
              "DNA" = dna_costs)
 }
+
+#TODO: Complete...
+get_success_rates <- function(url) {
+        sheet_ref <- gs_url(url)
+        
+        success_rates <- sheet_ref %>%
+                gs_read(ws = 1, col_names = TRUE)
+        
+}

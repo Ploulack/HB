@@ -18,7 +18,7 @@ MS_server <- function(input, output, session) {
                                 href = httr::modify_url(httr::oauth_endpoints("google")$authorize, 
                                         query = list(response_type = "code", client_id = hblab_id, 
                                                 redirect_uri = hblab_uri(), scope = hb_scopes, 
-                                                state = "securitytoken", access_type = "online", 
+                                                state = "securitytoken", access_type = "offline", 
                                                 approval_prompt = "auto")),
                                 class = "btn btn-default")
                 } else {
@@ -42,13 +42,14 @@ MS_server <- function(input, output, session) {
         })
         
         output$token <- renderTable ({
-                validate(
-                        need(!is.null(access_token()),
-                                message = "Click Authorize (this also resets other tabs)")
-                )
+                # validate(
+                #         need(access_token(),
+                #                 message = "Click Authorize (this also resets other tabs)")
+                # )
+                if (is.null(access_token())) return()
                 
-                saveRDS(access_token(), file = "token.rds")
-                drive_auth(oauth_token = "token.rds")
+                saveRDS(access_token(), file = "hblab_token.rds")
+                drive_auth(oauth_token = "hblab_token.rds", cache = NA, reset = FALSE)
                 #IMPORTANT Todo: remove Token after usage!
                 downloaded_file <- drive_download(
                         file = as_id("https://drive.google.com/open?id=0B5hr9AzcSe-sNUZ5M1BrUDZ0MHFzWEpJdC1hTXlZZ1gwZVdF"),

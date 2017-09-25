@@ -22,7 +22,7 @@ tecan_ui <- function(id) {
                         tableOutput(ns("summary"))
                 ),
                 mainPanel(
-                        tecan_db_ui("Tecan_db"),
+                        tecan_db_ui(ns("Tecan_db")),
                         titlePanel(
                                 textOutput(ns("type"))
                         ),

@@ -10,7 +10,7 @@ function(session, input, output) {
         #DECISION TOOL
         observeEvent(input$decision_go, {
                 source("order_dna_decision/decision_server.R")
-                callModule(decision, "decision")
+                callModule(decision_server, "decision")
                 })
         
         # MS

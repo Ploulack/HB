@@ -70,3 +70,9 @@ Tecan/gel/gel_values.R
 Tecan/tecan/tecan_values.R
 
 *.jpg
+
+Tecan/.httr-oauth-SUSPENDED
+
+Tecan/registry/registry_values.R
+
+Tecan/tecan/tecan_db_values.R

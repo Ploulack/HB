@@ -1,5 +1,5 @@
 tecan_server <- function(input, output, session) {
-        
+        library(shiny)
         source("tecan/tecan_extract.R")
         source("tecan/tecan_values.R")
         source("dropbox_helpers.R")
@@ -26,6 +26,18 @@ tecan_server <- function(input, output, session) {
                 
         })
         
+        tecan_file <- reactive({
+                return(
+                        list(
+                                "file" = basename(input$file),
+                                "samples" = experiment$raw$data$Batch_1$Measures$Sample,
+                                "type" = experiment$raw$kinetic ))
+        })
+        
+        callModule(tecan_db_server,
+                id = "Tecan_db",
+                tecan_file = tecan_file)
+        
         observeEvent(input$file, {
                 #Prevent re-download from dropbox when the select files input is initialized or updated, 
                 if (input$file %in% c("Waiting from dropbox")) return()
@@ -38,16 +50,17 @@ tecan_server <- function(input, output, session) {
                         )
                 } else {
                         experiment$raw <- tecan_extract(input$file, token)
-                        callModule(tecan_db_server,
-                                id = "Tecan_db")
                 }
         })
         
         output$type <- renderText({
-                validate(
-                        need(!is.null(experiment$raw),
-                                message = "Waiting for file...")
-                )
+                # validate(
+                #         need(!is.null(experiment$raw),
+                #                 message = "Waiting for file...")
+                # )
+                if (is.null(experiment$raw)) {
+                        return()
+                }
                 if_else(
                         experiment$raw$kinetic,
                         "600nm",
@@ -59,6 +72,7 @@ tecan_server <- function(input, output, session) {
                 
                 absorbance <- as.double(input$absorbance)
                 path <- as.double(input$path)
+                # print(experiment$raw$data$Batch_1$Measures$Sample)
                 
                 if (!experiment$raw$kinetic) {
                         experiment$calculated <-calc_values(experiment$raw$data,

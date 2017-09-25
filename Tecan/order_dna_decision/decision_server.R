@@ -4,6 +4,13 @@ decision_server <- function(input, output, session) {
         #Get data from Google 'Assembly Cost'
         source("order_dna_decision/import_dna_decision_data.R")
         source("order_dna_decision/decision_values.R")
+        #Getting the Google APIs key & secret...
+        source("MS/MS_values.R")
+        
+        #TODO: check if Token has expired, handle that case
+        gs_auth(
+                key = hblab_id,
+                secret = hblab_secret, cache = TRUE)
         assemply_sheets <- get_assembly_costs(url)
         step_values <- assemply_sheets$steps
         hr_costs <- assemply_sheets$HR
