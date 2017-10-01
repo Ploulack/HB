@@ -1,7 +1,7 @@
-get_token <- function (auth_code, client_id = hblab_id, 
-        client_secret = hblab_secret, 
-        redirect_uri = hblab_uri,
-        scope_list = hb_scopes) 
+get_token <- function (auth_code, client_id, 
+        client_secret, 
+        redirect_uri,
+        scope_list) 
 {
         my_drive_app <- httr::oauth_app("google",
                 key = client_id, 

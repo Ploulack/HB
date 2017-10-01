@@ -1,17 +1,18 @@
-gel_server <- function(input, output, session) {
+gel_server <- function(input, output, session, gtoken) {
         source("gel/gel_values.R")
-        source("dropbox_helpers.R")
+        source("drive_helpers.R")
         
-        gel_pics <- reactiveValues()
+        gel_pics <- reactiveValues(files = NULL)
         
         choiceFiles <- reactive({
                 input$refresh
-                db_files <- get_ordered_filenames_from_db_dir(
-                        pics_folder,
-                        token,
-                        type = "db_app")
-                db_files$path %>%
-                        set_names(db_files$exp_date)
+                gel_pics$files <- get_ordered_filenames_from_drive(
+                        as_id(pics_folder_url),
+                        type = "google_photo_app"
+                )
+                res <- gel_pics$files$id %>%
+                        set_names(gel_pics$files$exp_date)
+                return(res)
         })
         
         observeEvent(c(choiceFiles, input$refresh), {
@@ -36,9 +37,9 @@ gel_server <- function(input, output, session) {
                         )
                         )
                 } else {
-                        drop_get(path = input$file,
-                               local_file = "temp/picture.jpg",
-                               overwrite = TRUE)
+                        drive_download(file = gel_pics$files %>% filter(id == input$file),
+                                path = "temp/picture.jpg",
+                                overwrite = TRUE)
                         
                         output$picture <-  renderImage({
                                 width  <- session$clientData$output_picture_width
@@ -46,7 +47,6 @@ gel_server <- function(input, output, session) {
                                 list(src = "temp/picture.jpg",
                                         #Todo: Change picture width with widget
                                         width = 1200)
-                                #TODO: Keep picture but delete on session Ends
                         }, deleteFile = TRUE)
                 }
         })

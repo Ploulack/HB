@@ -1,19 +1,24 @@
-tecan_server <- function(input, output, session) {
+tecan_server <- function(input, output, session, gtoken) {
         library(shiny)
         source("tecan/tecan_extract.R")
+        #Set Drive directory
         source("tecan/tecan_values.R")
-        source("dropbox_helpers.R")
+        source("drive_helpers.R")
         source("tecan/tecan_db_server.R")
         
         experiment <- reactiveValues()
         db_files <- reactiveValues()
+        tecan <- reactiveValues(files = NULL)
+        # cat("drive user ", unlist(googledrive::drive_user()))
         
         choiceFiles <- reactive({
                 input$refresh
-                db_files <- get_ordered_filenames_from_db_dir(dropbox_dir, token)
-                db_files$path %>%
-                        set_names(db_files$exp_date)
+                #Todo: change to token from module call...
+                tecan$files <- get_ordered_filenames_from_drive(as_id(drive_tecanURL))
+                tecan$files$id %>%
+                        set_names(tecan$files$exp_date)
         })
+        
         
         observeEvent(c(choiceFiles, input$refresh), {
                 choices <- choiceFiles()
@@ -29,14 +34,16 @@ tecan_server <- function(input, output, session) {
         tecan_file <- reactive({
                 return(
                         list(
-                                "file" = basename(input$file),
+                                "file" = input$file,
+                                "file_dribble" = tecan$files %>% filter(id == input$file),
                                 "samples" = experiment$raw$data$Batch_1$Measures$Sample,
                                 "type" = experiment$raw$kinetic ))
         })
         
         callModule(tecan_db_server,
                 id = "Tecan_db",
-                tecan_file = tecan_file)
+                tecan_file = tecan_file,
+                gtoken = gtoken)
         
         observeEvent(input$file, {
                 #Prevent re-download from dropbox when the select files input is initialized or updated, 
@@ -49,15 +56,11 @@ tecan_server <- function(input, output, session) {
                         )
                         )
                 } else {
-                        experiment$raw <- tecan_extract(input$file, token)
+                        experiment$raw <- tecan_extract(input$file, token, tecan$files)
                 }
         })
         
         output$type <- renderText({
-                # validate(
-                #         need(!is.null(experiment$raw),
-                #                 message = "Waiting for file...")
-                # )
                 if (is.null(experiment$raw)) {
                         return()
                 }

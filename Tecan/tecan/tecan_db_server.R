@@ -1,5 +1,6 @@
-tecan_db_server <- function(input, output, session, tecan_file) {
+tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
         library(purrr); library(stringr)
+        
         source("helpers/mongo_helpers.R")
         source("registry/registry_helpers.R")
         #Only initiate mongo connexion when needed
@@ -7,24 +8,21 @@ tecan_db_server <- function(input, output, session, tecan_file) {
                 source("tecan/tecan_db_values.R")
         }
         
+        registry <- get_registry(gtoken)
+        
         file_record <- eventReactive(c(input$update, tecan_file()), {
                 shiny::validate(
                         need(
                                 !is.null(tecan_file()$type),
                                 message = FALSE)
                 )
-                
+                #Display db ui only if File is not kinetic...
                 if (!tecan_file()$type) {
                         return(
                                 mongo_file_entry(db, tecan_file()$file)
                         )
                 }
         })
-        
-        #TODO: pass Token to the Call module call
-        token <- readRDS("hblab_token.rds")
-        
-        registry <- get_registry(token = token)
         
         #Create inputs
         observeEvent(c(tecan_file()), {
@@ -43,22 +41,24 @@ tecan_db_server <- function(input, output, session, tecan_file) {
                                                                         selectizeInput(
                                                                                 inputId = ns(x),
                                                                                 label = sprintf("Sample %s", x ),
-                                                                                multiple = FALSE,
-                                                                                choices = registry$KEY
+                                                                                choices = registry$KEY  %>%
+                                                                                        prepend(c("", "Plasmid")),
+                                                                                multiple = FALSE
+                                                                                
                                                                         )
                                                                 )
                                                         })
                                                 )
                                         ),
                                         fluidRow(
-                                                column(width = 3,
+                                                column(width = 4,
                                                         textInput(inputId = ns("note"),
                                                                 label = "Optional note",
                                                                 placeholder = "Enter file note")
                                                 ),
                                                 column(width = 2,
                                                         actionButton(inputId = ns("update"),
-                                                                label = "Update info"))
+                                                                label = "Update database infos for this file"))
                                         )   
                                 )
                         })       
@@ -76,17 +76,16 @@ tecan_db_server <- function(input, output, session, tecan_file) {
                                 message = FALSE))
                 if (tecan_file()$file %in% c("Waiting from dropbox")) return()
                 
-                print(paste0("file record ", file_record()$entry_exists))
-                print(paste0(" type ", tecan_file()$type))
-                
                 #When user switches tecan file, display existing entries in input fields
                 if(file_record()$entry_exists) {
                         #Todo: Add missing entries (parts, samples, etc)
-                        #
-                        for (i in seq_along(tecan_file()$samples[-1])+1) {
+                        for (i in seq_along(tecan_file()$samples[-1])) {
                                 updateSelectizeInput(
                                         session,
-                                        inputId = tecan_file()$samples[i],
+                                        # using the db entry for the input Ids
+                                        # while we're seq_along the file samples (minus water well)
+                                        # is an implicit matching check
+                                        inputId = file_record()$entry$samples[[1]]$Sample[i],
                                         selected = file_record()$entry$samples[[1]]$Key[i]
                                 )
                         }
@@ -98,31 +97,65 @@ tecan_db_server <- function(input, output, session, tecan_file) {
                 }
         })
         
+        input_keys <- reactive({
+                map_chr(tecan_file()$samples[-1], ~input[[.x]])
+        })
+        
+        #Make a reactive function of the Samples 'Key' inputs
         sample_keys <- reactive({
-                if(is.null(tecan_file()$samples)) return()
-                else if (!is.null(input[[tecan_file()$samples[1]]])) {
-                        map_chr(tecan_file()$samples,
-                                ~input[[.x]])        
+                shiny::validate(
+                        need(!is.null(tecan_file()$samples), message = FALSE)
+                        )
+               #The first Sample is water, we don't want it.
+               ##TODO: study to directly remove the first well from tecan_file()$samples
+                #rather than always have tecan_file()$samples
+                
+               # inputs <- map_chr(tecan_file()$samples[-1], ~input[[.x]]) 
+               inputs <- input_keys()
+               
+               shiny::validate(need(
+                       all(inputs !=""),  message = "Please link key to all samples"
+               ))
+               
+               return(inputs)
+        })
+        
+        observeEvent(input$update, {
+                shiny::validate(
+                        need(!is.null(tecan_file()$samples), message = FALSE)
+                )
+                inputs <- input_keys()
+                if (any(inputs == "")) {
+                        showModal(modalDialog(
+                                title = "Missing wells keys",
+                                "Please inform all samples before updating database",
+                                easyClose = TRUE,
+                                footer = NULL
+                        ))
                 }
         })
         
+        
         #Insert or Update in mongo db
         observeEvent(input$update ,{
-                if(is.null(tecan_file()$samples)) return()
+                shiny::validate(
+                        need(!is.null(tecan_file()$samples[-1]), message = FALSE)
+                )
                 
                 #Check if there's an entry for that file name
-                file_name <- tecan_file()$file
+                file_id <- tecan_file()$file
+                file_name <- tecan_file()$file_dribble$name
                 
                 #Prepare the string for the samples 'Array'
-                samples_str <- toJSON(
+                samples_str <- jsonlite::toJSON(
                         map2(
-                                tecan_file()$samples,
+                                tecan_file()$samples[-1],
                                 sample_keys(),
                                 ~list("Sample" = .x, "Key" = .y))
                 ) %>% str_replace_all(pattern = "\\[|\\]", replacement = "")
                 
                 if (file_record()$entry_exists) {
-                        str1 <- paste0('{"file" : "', file_name,'"}')
+                        str1 <- paste0('{"file" : "', file_id,'"}')
                         str2 <- paste0(
                                 '{"$set" : 
                                 {"note" : "',input$note,'","samples" : [',samples_str ,']}
@@ -133,7 +166,7 @@ tecan_db_server <- function(input, output, session, tecan_file) {
                 } else {
                         #Todo: Add file type TECAN vs GEL
                         str <- paste0(
-                                '{"file" : "',file_name,'",
+                                '{"file" : "',file_id,'", "name" : "', file_name,'",
                                 "note" : "', input$note, '",
                                 "samples" : [',samples_str ,']
                                 }'

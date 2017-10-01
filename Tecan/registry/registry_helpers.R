@@ -7,6 +7,7 @@ get_registry <- function(token) {
         #for now, using Drive read enabled token in place for order DNA decision..
         
         #Getting the Google APIs key & secret...
+        #Todo: rename from 'MS' make generic
         source("MS/MS_values.R")
         gs_auth(token = token,
                 key = hblab_id,

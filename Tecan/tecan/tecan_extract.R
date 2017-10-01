@@ -1,7 +1,7 @@
 require(lubridate)
 require(stringr)
 
-source("dropbox_helpers.R")
+source("drive_helpers.R")
 
 is_kinetic <- function(xml_file) {
         is_kinetic <- xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
@@ -12,22 +12,24 @@ is_kinetic <- function(xml_file) {
         is_kinetic
 }
 
-dl_tecan_xml <- function(db_file, folder, token) {
-        require(xml2)
+
+dl_tecan_xml <- function(dribble, folder) {
+        library(xml2)
         if (!dir.exists(folder)) {
                 dir.create(folder)
         }
-        local_ <- paste0(folder,basename(db_file))
-        drop_get(db_file, local_file = local_, overwrite = TRUE, dtoken = token)
+        local_ <- paste0(folder,dribble$name)
+        drive_download(dribble, path = local_, overwrite = TRUE)
         tecan_xml <- read_xml(local_)
         file.remove(local_)
         tecan_xml
 }
 
-tecan_extract <- function(db_file, token) {
+
+tecan_extract <- function(input_file, token, dribble) {
         folder <- "temp/"
-        
-        tecan <- dl_tecan_xml(db_file, folder, token)
+        #Todo: find the input_file in the dribble
+        tecan <- dl_tecan_xml(dribble %>% filter(id == input_file), folder)
         
 
         #Get the Data which is in the Elements "Section", 

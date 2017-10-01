@@ -76,3 +76,9 @@ Tecan/.httr-oauth-SUSPENDED
 Tecan/registry/registry_values.R
 
 Tecan/tecan/tecan_db_values.R
+
+Tecan/auth/google_button_values.R
+
+Tecan/tecan_values.R
+
+Tecan/tecan_values.R
