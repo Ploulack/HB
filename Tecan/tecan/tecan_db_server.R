@@ -1,7 +1,6 @@
 tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
         library(purrr); library(stringr)
         
-        
         source("helpers/mongo_helpers.R")
         source("registry/registry_helpers.R")
         source("registry/registry_values.R")
@@ -29,7 +28,7 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
                 }
         })
         
-        #Create inputs
+        #Create inputs and related textOutputs
         observeEvent(c(tecan_file()), {
                 shiny::validate(need(!(is.null(registry) |
                                 is.null(tecan_file()$samples) |
@@ -102,11 +101,18 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
                 }
         })
         
+        
+        #Todo: remove this. sample_keys is the same thing!!!
         input_keys <- reactive({
+                shiny::validate(
+                        need(!is.null(tecan_file()$samples), message = FALSE))
+                # Todo: change condition for something more generic
+                shiny::validate(need(!is.null(input[[tecan_file()$samples[-1][1]]]), message = FALSE))
+                
                 map_chr(tecan_file()$samples[-1], ~input[[.x]])
         })
         
-        #Make a reactive function of the Samples 'Key' inputs
+        #Make a reactive function of the Samples 'Key' entered by the user
         sample_keys <- reactive({
                 shiny::validate(
                         need(!is.null(tecan_file()$samples), message = FALSE)
@@ -115,16 +121,34 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
                ##TODO: study to directly remove the first well from tecan_file()$samples
                 #rather than always have tecan_file()$samples
                 
-               # inputs <- map_chr(tecan_file()$samples[-1], ~input[[.x]]) 
                inputs <- input_keys()
-               
-               shiny::validate(need(
-                       all(inputs !=""),  message = "Please link key to all samples"
-               ))
-               
+               # shiny::validate(need(
+               #         all(inputs !=""),  message = "Please link key to all samples"
+               # ))
                return(inputs)
         })
         
+        #Display beneath each sample-key input the registry part's name
+        observeEvent(c(input_keys(), tecan_file()),{
+                shiny::validate(need(expr = !is.null(tecan_file()$samples[-1]), message = FALSE))
+                ns <- session$ns
+                walk2(tecan_file()$samples[-1], sample_keys(), function(x,y) {
+                        removeUI(selector = paste0("#js_id",x))
+                        #Todo: get values in a clearner way
+                        if (!y %in% c("", "Plasmid")) {
+                                
+                                insertUI(selector = paste0("#", ns(x)),
+                                        where = "afterEnd",
+                                        ui = tags$h6(registry %>%
+                                                        filter(KEY == y) %>% pull(var = 2),
+                                                id = paste0("js_id",x))
+                                )
+                        }
+                })
+                
+        })
+        
+        #Require all samples informed from user with a modal dialog
         observeEvent(input$update, {
                 shiny::validate(
                         need(!is.null(tecan_file()$samples), message = FALSE)
