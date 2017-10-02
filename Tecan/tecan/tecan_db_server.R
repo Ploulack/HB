@@ -1,14 +1,19 @@
 tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
         library(purrr); library(stringr)
         
+        
         source("helpers/mongo_helpers.R")
         source("registry/registry_helpers.R")
+        source("registry/registry_values.R")
         #Only initiate mongo connexion when needed
         if (!exists("db")) {
-                source("tecan/tecan_db_values.R")
+                source("mongo/db_values.R")
+                db <- db_from_environment(session)
         }
         
-        registry <- get_registry(gtoken)
+        # registry <- get_registry(gtoken)
+        registry <- registry_key_names(registry_url, registry_sheets)
+        
         
         file_record <- eventReactive(c(input$update, tecan_file()), {
                 shiny::validate(

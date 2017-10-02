@@ -2,7 +2,6 @@ suppressPackageStartupMessages(library(tidyverse))
 library(lubridate)
 library(shiny)
 library(stringr)
-library(rdrop2)
 
 # tabs <- c("Tecan","Order Decision Tool","MS Analysis", "Gel")
 token_name <- "hblab_token.rds"

@@ -1,6 +1,5 @@
 library(stringr)
 library(lubridate)
-library(rdrop2)
 
 
 file_date <- function(file_name, type = "tecan") {

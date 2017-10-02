@@ -27,16 +27,6 @@ google_button_server <- function(input, output, session) {
                                                         approval_prompt = "auto")),
                                         "';")
                                 )
-                        
-                        
-                        # tags$a("Authorize App",
-                        #         #Todo: add as a function to google_auth_function.R
-                        #         href = httr::modify_url(httr::oauth_endpoints("google")$authorize,
-                        #                 query = list(response_type = "code", client_id = hblab_id,
-                        #                         redirect_uri = hblab_uri(), scope = hb_scopes,
-                        #                         state = "securitytoken", access_type = "offline",
-                        #                         approval_prompt = "auto")),
-                        #         class = "btn btn-default action-button")
                 } else {
                         return()}
         })
