@@ -2,8 +2,17 @@ gel_server <- function(input, output, session, gtoken) {
         source("gel/gel_values.R")
         source("drive_helpers.R")
         
+        #Get mongo db connector for gel pictures data
+        source("helpers/mongo_helpers.R")
+        #Only initiate mongo connexion when needed
+        if (!exists("db")) {
+                source("mongo/db_values.R")
+                gel_db <- db_from_environment(session, collection = "gel_photos")
+        }
+        
         gel_pics <- reactiveValues(files = NULL)
         
+        #function to get files list
         choiceFiles <- reactive({
                 input$refresh
                 gel_pics$files <- get_ordered_filenames_from_drive(
@@ -15,6 +24,7 @@ gel_server <- function(input, output, session, gtoken) {
                 return(res)
         })
         
+        #Display files list choice to user
         observeEvent(c(choiceFiles, input$refresh), {
                 choices <- choiceFiles()
                 updateSelectInput(session, "file",
@@ -26,13 +36,14 @@ gel_server <- function(input, output, session, gtoken) {
                 
         })
         
+        #Todo: convert observeEvent to renderImage with need()...
         observeEvent(input$file, {
-                #Prevent re-download from dropbox when the select files input is initialized or updated, 
-                if (input$file %in% c("Waiting from dropbox")) return()
+                #Prevent re-download from Drive when the select files input is initialized or updated, 
+                if (input$file %in% c("Waiting from Google Drive")) return()
                 else if (input$file == "") {
                         showModal(modalDialog(
                                 title = "No File",
-                                paste0("There's no files in specified dropbox folder: ",
+                                paste0("There's no files in specified Google Drive folder: ",
                                         pics_folder)
                         )
                         )

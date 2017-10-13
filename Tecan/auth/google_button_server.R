@@ -11,8 +11,6 @@ google_button_server <- function(input, output, session) {
                 return(res)
         })
         
-        print("entered google button server")
-        
         output$button <- renderUI({
                 if (is.null(isolate(access_token()))) {
 
@@ -53,7 +51,6 @@ google_button_server <- function(input, output, session) {
                 shiny::validate(need(
                         !is.null(access_token()), message = FALSE
                 ))
-                print("Entered the observe Event in Google button that should create RDS before the validate")
                 saveRDS(access_token(), file = "hblab_token.rds")
                 drive_auth(oauth_token = "hblab_token.rds",cache = FALSE, reset = FALSE)
         })

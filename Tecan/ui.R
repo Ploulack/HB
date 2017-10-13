@@ -29,6 +29,8 @@ navbarPage("HB lab",
                         ))
                 ,
                 tabPanel("Order Decision Tool",
+                        conditionalPanel(
+                        condition = "output.token_exists == true",
                                 conditionalPanel(
                                         condition = "input.decision_go == 0",
                                         actionButton("decision_go", "Launch Order Decision Tool")
@@ -37,6 +39,7 @@ navbarPage("HB lab",
                                         condition = "input.decision_go > 0",
                                         decisionUI("decision")
                                 )
+                        )
                         ),
                 tabPanel("Gel",
                         conditionalPanel(

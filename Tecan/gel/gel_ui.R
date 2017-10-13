@@ -10,7 +10,7 @@ gel_ui <- function(id) {
                                 label = "Check for new Gel Picture"),
                         selectInput(ns("file"),
                                 label = "Select from latest gel captures",
-                                choices = list("Waiting from dropbox")),
+                                choices = list("Waiting from Google Drive")),
                         imageOutput(ns("picture"))
                 )
         )

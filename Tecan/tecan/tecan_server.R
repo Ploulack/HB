@@ -37,21 +37,21 @@ tecan_server <- function(input, output, session, gtoken) {
                                 "file" = input$file,
                                 "file_dribble" = tecan$files %>% filter(id == input$file),
                                 "samples" = experiment$raw$data$Batch_1$Measures$Sample,
-                                "type" = experiment$raw$kinetic ))
+                                "is_kinetic" = experiment$raw$kinetic ))
         })
         
-        callModule(tecan_db_server,
+        data_switch <- callModule(tecan_db_server,
                 id = "Tecan_db",
                 tecan_file = tecan_file,
                 gtoken = gtoken)
         
         observeEvent(input$file, {
-                #Prevent re-download from dropbox when the select files input is initialized or updated, 
-                if (input$file %in% c("Waiting from dropbox")) return()
+                #Prevent re-download from Google Drive when the select files input is initialized or updated, 
+                if (input$file %in% c("Waiting from Google Drive")) return()
                 else if (input$file == "") {
                         showModal(modalDialog(
                                 title = "No File",
-                                paste0("There's no files in specified dropbox folder: ",
+                                paste0("There's no files in specified Google Drive folder: ",
                                         "/HB/Tecan")
                         )
                         )
@@ -60,6 +60,7 @@ tecan_server <- function(input, output, session, gtoken) {
                 }
         })
         
+        # Tell user if it's a 260 or 600nm
         output$type <- renderText({
                 if (is.null(experiment$raw)) {
                         return()
@@ -70,12 +71,12 @@ tecan_server <- function(input, output, session, gtoken) {
                         "PCR Quantification - 260nm")
         })
         
+        # Todo: une horreur, tout reprendre clean
         observeEvent(c(input$absorbance,input$path, experiment$raw),{
                 if (is.null(experiment$raw$data) ) return()
                 
                 absorbance <- as.double(input$absorbance)
                 path <- as.double(input$path)
-                # print(experiment$raw$data$Batch_1$Measures$Sample)
                 
                 if (!experiment$raw$kinetic) {
                         experiment$calculated <-calc_values(experiment$raw$data,
@@ -92,37 +93,71 @@ tecan_server <- function(input, output, session, gtoken) {
                 }, digits = 2)
                 
                 output$hist <- renderPlot({
-                        if (!experiment$raw$kinetic) {
-                                ggplot(experiment$calculated$Results) +
-                                        aes(x = factor(Sample, levels = Sample),
-                                                y = Concentration,
-                                                fill = (Ratio > 1.7 & Ratio <2.0)) +
-                                        geom_bar(stat = "identity") +
-                                        theme(legend.position= c(.9,.9)) +
-                                        scale_x_discrete("Samples") +
-                                        scale_fill_discrete(limits = c('FALSE', 'TRUE'))
-                        } else {
-                                ggplot(experiment$raw$data$Batch_1$Measures) +
-                                        aes(x = factor(Sample, levels = Sample),
-                                                y = Value,
-                                                fill = Value > .2) +
-                                        geom_bar(stat = "identity") +
-                                        theme(legend.position= c(.9,.9)) +
-                                        scale_x_discrete("Samples") +
-                                        scale_fill_discrete(limits = c('FALSE', 'TRUE'))
-                        }
+                        graph_type <- (!experiment$raw$kinetic && data_switch())
+                        if(graph_type) {
+                                df <- experiment$calculated$Results
+                        } else if (data_switch()) {
+                                df <- experiment$raw$data$Batch_1$Measures
+                        } else return()
+                                
+                        ggplot(df) +
+                                aes(x = factor(Sample, levels = Sample),
+                                        y = if(graph_type) {Concentration}
+                                        else {Value},
+                                        fill = if(graph_type) {Ratio > 1.7 & Ratio <2.0}
+                                        else {Value > .2}) +
+                                geom_bar(stat = "identity") +
+                                theme(legend.position= c(.9,.9)) +
+                                scale_x_discrete("Samples") + 
+                                ylab (if_else(graph_type, "Concentration", "Value")) +
+                                scale_fill_discrete(limits = c('FALSE', 'TRUE')) +
+                                if (graph_type) {
+                                        geom_text(
+                                                aes( y = Concentration + mean(Concentration) * 0.03),
+                                                label = format(df$Concentration, digits = 1)
+                                        )
+                                } else {
+                                        geom_text(
+                                                aes( y = Value + mean(Value) * 0.03),
+                                                label = format(df$Value, digits = 1)
+                                        )
+                                }
                         
+                        
+                        # if (!experiment$raw$kinetic && data_switch()) {
+                        #         df <- experiment$calculated$Results
+                        #         ggplot(df) +
+                        #                 aes(x = factor(Sample, levels = Sample),
+                        #                         y = Concentration,
+                        #                         fill = (Ratio > 1.7 & Ratio <2.0)) +
+                        #                 geom_bar(stat = "identity") +
+                        #                 theme(legend.position= c(.9,.9)) +
+                        #                 scale_x_discrete("Samples") +
+                        #                 scale_fill_discrete(limits = c('FALSE', 'TRUE')) +
+                        #                 geom_text(aes(y = Concentration + mean(Concentration) * 0.03),
+                        #                         label = format(df$Concentration, digits = 1))
+                        # } else if(data_switch()) {
+                        #         df <- experiment$raw$data$Batch_1$Measures
+                        #         ggplot(df) +
+                        #                 aes(x = factor(Sample, levels = Sample),
+                        #                         y = Value,
+                        #                         fill = Value > .2) +
+                        #                 geom_bar(stat = "identity") +
+                        #                 theme(legend.position= c(.9,.9)) +
+                        #                 scale_x_discrete("Samples") +
+                        #                 scale_fill_discrete(limits = c('FALSE', 'TRUE')) +
+                        #                 geom_text(aes(y = Concentration + mean(Concentration) * 0.03),
+                        #                         label = format(df$Concentration, digits = 1))
+                        # }
                 })
                 
-                if (!experiment$raw$kinetic) {
-                        output$batch <- renderDataTable({
-                                experiment$calculated$Table
-                        })
-                } else {
-                        output$batch <- renderDataTable({
-                                NULL
-                        })
-                }
+                output$batch <- renderDataTable({
+                        if (!experiment$raw$kinetic) {
+                                        return(experiment$calculated$Table)
+                        } else {
+                                        NULL
+                        }
+                })
                 
         })
 }

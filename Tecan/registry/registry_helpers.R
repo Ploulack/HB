@@ -22,12 +22,20 @@ get_registry <- function(token) {
                 gs_read(ws = 1, col_names = TRUE)
 }
 
-registry_key_names <- function(registry_url, registry_sheets) {
+registry_key_names <- function(registry_url, registry_sheets, file = registry_file) {
         library(readxl)
-        if (!file.exists("registry/registry.xlsx")) drive_download(file = as_id(registry_url), path = "registry/registry.xlsx")
+        registry_modified <- drive_get(as_id(registry_url))$drive_resource[[1]]$modifiedTime %>%
+                ymd_hms(tz = "America/Montreal", quiet = TRUE)
+        registry_synced <- file.mtime(file)
+        outdated <- registry_modified > registry_synced
+        
+        if (!file.exists(file) | outdated ) 
+        {drive_download(file = as_id(registry_url),
+                        path = file,
+                overwrite = TRUE)}
         registry_key_names <- map_dfr(
                 registry_sheets,
-                ~ read_xlsx(path = "registry/registry.xlsx",
+                ~ read_xlsx(path = file,
                         sheet = .x,
                         range = cell_cols(1:2)
                 )

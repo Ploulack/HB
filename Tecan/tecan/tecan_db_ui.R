@@ -1,4 +1,8 @@
 tecan_db_ui <- function(id) {
         ns <- NS(id)
-               uiOutput(ns("keys"))
+        
+        fluidPage(
+                uiOutput(ns("keys")),
+                textOutput(ns("test"))
+        )
 }

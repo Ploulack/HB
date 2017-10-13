@@ -17,7 +17,7 @@ tecan_ui <- function(id) {
                         actionButton(ns("refresh"),
                                 label = "Check for new Tecan files"),
                         selectInput(ns("file"), "Select from latest Tecan Files",
-                                choices = list("Waiting from dropbox"),
+                                choices = list("Waiting from Google Drive"),
                                 width = width),
                         tableOutput(ns("summary"))
                 ),
