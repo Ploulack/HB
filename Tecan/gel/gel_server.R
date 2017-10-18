@@ -36,56 +36,76 @@ gel_server <- function(input, output, session, gtoken) {
                 )
                 
         })
-
+        
         #Create reactive to have only the last click
         #(to prevent return to NULL of the input)
         #Store clicks with id to tie them to index later on
         last_click <- reactiveVal(value = NULL)
-        clicks <- reactiveVal(as_tibble(x = NULL, y = NULL, id = NULL))
+        clicks <- reactiveVal(as_tibble(colnames(c("x", "y", "id"))))
         
         observeEvent(input$click, {
                 shiny::validate(need(!is.null(input$click), message = FALSE))
                 last_click(input$click)
-                clicks (isolate(clicks()) %>% bind_rows(
-                        list("x" = last_click()$x,
-                                "y" = last_click()$y,
-                                "id" = dim(clicks())[1]+1)
-                )
-                )
+                
+                #Only start building labeling list if the crop view is perma
+                if (file_record()$entry_exists || coord_stored()) {
+                        clicks (clicks() %>% bind_rows(
+                                list("x" = last_click()$x,
+                                        "y" = last_click()$y,
+                                        "id" = dim(clicks())[1]+1)
+                        ))} else if (base_graph()$is_cropped){
+                                showModal(modalDialog(
+                                        title = "Save the cropped view",
+                                        "Can't let you place labels unless the cropped view is permanently saved.
+                                        Use the button on the left",
+                                        footer = NULL,
+                                        easyClose = TRUE))
+                        }
         })
         
         #Create reactive to have only the last selected area
-        #Insert two crop approve / cancel buttons
-        last_drag <- reactiveVal(value = NULL)
+        #Use one for each usage type (crop image, label image)
+        crop_drag <- reactiveVal(value = NULL)
+        label_drag <- reactiveVal(value = NULL)
+        
         observeEvent(input$drag_area, {
                 shiny::validate(need(!is.null(input$drag_area), message = FALSE))
-                last_drag(input$drag_area)
-                #Remove the last click as a click is triggered on a drag
-                tbl <- clicks() %>% filter(id != dim(clicks())[1])
-                clicks(tbl)
-                
-                if (!file_record()$entry_exists) {
-                        insertUI(selector = paste0("#", ns("_bar")),
-                                where = "afterEnd",
-                                ui = fluidRow(
-                                        actionButton(inputId = ns("store_crop"),
-                                                label = "Store Crop,start taging"),
-                                        actionButton(inputId = ns("cancel_crop"),
-                                                label = "Cancel crop")
-                                )
-                        ) 
+                if (!base_graph()$is_cropped) {
+                        crop_drag(input$drag_area)
+                } else {
+                        label_drag(input$drag_area)
                 }
+                
+                # #Remove the last click as a click is triggered on a drag
+                # clicks(
+                #         clicks() %>% filter(id != dim(clicks())[1])
+                # )
                 
         })
         #Remove buttons when: user cancels, stores the crop, or, changes file
         observeEvent(c(input$cancel_crop, coord_stored(), input$file), {
                 if (coord_stored() ||
                                 (!is.null(input$cancel_crop) && input$cancel_crop>0) ||
-                                is.null(last_drag())) {
+                                is.null(crop_drag())) {
                         removeUI( paste0("div:has(>#",ns("store_crop"),")"))
                         removeUI( paste0("div:has(>#",ns("cancel_crop"),")"))
                 }
         })
+        
+        observeEvent(base_graph(),{
+                if (base_graph()$is_cropped &&
+                                !file_record()$entry_exists
+                                ) {
+                        output$buttons <- renderUI({
+                                fluidRow(
+                                                        actionButton(inputId = ns("store_crop"),
+                                                                label = "Store Crop,start taging"),
+                                                        actionButton(inputId = ns("cancel_crop"),
+                                                                label = "Cancel crop")
+                                )
+                        })
+                        }
+        }, ignoreNULL = TRUE)
         
         img <- reactiveVal(value = NULL)
         
@@ -109,9 +129,6 @@ gel_server <- function(input, output, session, gtoken) {
                                         overwrite = TRUE)        
                         }
                         return(file_name)
-                        
-                        # picture_path(file_name)
-                        # return(graph())
                 }
         })
         
@@ -121,7 +138,7 @@ gel_server <- function(input, output, session, gtoken) {
                 mongo_file_entry(gel_db, input$file)
         })
         
-       
+        
         #reactive 'flag' to know when db insert has been a success
         coord_stored <- reactiveVal(FALSE)
         
@@ -132,7 +149,7 @@ gel_server <- function(input, output, session, gtoken) {
                 file_name <- gel_pics$files %>%
                         filter( id == input$file) %>%
                         pull(name)
-                coord_str <- jsonlite::toJSON(last_drag()[1:4]) %>%
+                coord_str <- jsonlite::toJSON(crop_drag()[1:4]) %>%
                         str_replace_all(pattern = "\\[|\\]", replacement = "")
                 str <- paste0(
                         '{"file" : "',input$file,'","name" : "',file_name,'",
@@ -140,7 +157,6 @@ gel_server <- function(input, output, session, gtoken) {
                 )
                 print("new entry")
                 print(jsonlite::prettify(str))
-                browser()
                 insert_log <- gel_db$insert(str)
                 if (insert_log$nInserted == 1 && length(insert_log$writeErrors) == 0) {
                         showNotification(ui = sprintf("New entry for file %s", file_name) ,
@@ -153,7 +169,7 @@ gel_server <- function(input, output, session, gtoken) {
         #Todo: mettre dans un helper
         # picture_path <- reactiveVal(value = NULL)
         # graph <- reactiveVal(value = NULL)
-                # shiny::validate(need(!is.null(picture_path()), message = FALSE))
+        # shiny::validate(need(!is.null(picture_path()), message = FALSE))
         init_graph <- function(path) {
                 img <- readJPEG(source = path, native = TRUE)
                 img_grob <- rasterGrob(img, width=unit(1,"npc"), height=unit(1,"npc"), interpolate = FALSE)
@@ -176,17 +192,16 @@ gel_server <- function(input, output, session, gtoken) {
         base_graph <- reactive({
                 source_name <- paste0("temp/", input$file, "_raw.jpg")
                 cropped_name <- paste0("temp/", input$file, "_cropped.jpg")
-                if (is.null(last_drag()) && !file_record()$entry_exists) {
+                drag <- crop_drag()
+                if (is.null(drag) && !file_record()$entry_exists) {
                         list("graph" = get_picture() %>% init_graph(),
                                 "is_cropped" = FALSE)
                 } else {
                         if (!file.exists(cropped_name)) {
                                 img <-  magick::image_read(get_picture())
                                 img_info <- img %>% image_info()
-                                #It's important that the drag is set set after get_picture
-                                #because it's in get_picture that last_drag is reset on picture change
                                 if (file_record()$entry_exists) drag <- file_record()$entry$crop_coord
-                                else drag <- last_drag()
+                                # else drag <- crop_drag()
                                 img %>%
                                         image_crop(paste0(
                                                 (drag$xmax - drag$xmin) * img_info$width,
@@ -200,8 +215,8 @@ gel_server <- function(input, output, session, gtoken) {
                                         image_write(path = cropped_name)
                         }
                         list("graph" = init_graph(cropped_name),
-                        "is_cropped" = TRUE)
-                        }
+                                "is_cropped" = TRUE)
+                }
         })
         
         output$gel <- renderPlot({
@@ -216,44 +231,27 @@ gel_server <- function(input, output, session, gtoken) {
                                 angle = 80,
                                 hjust = 0,
                                 vjust = 0)
-                # isolate({
-                #         if (is.null(graph())) graph(base_graph()$graph)
-                # })
-                #         if(!is.null(last_click())) {
-                #                 isolate({
-                #                         graph(graph() +
-                #                                         annotate("text",
-                #                                                 x = last_click()$x,
-                #                                                 y = last_click()$y,
-                #                                                 label = "Some text",
-                #                                                 size = 5,
-                #                                                 angle = 80,
-                #                                                 hjust = 0,
-                #                                                 vjust = 0)
-                #                         )
-                #                 })
-                #                 
-                #         }
-                #         return(graph())
+                        
                 }
-        }
-                # , height =800,
-                # width =
-        )
+        })
+        
         #Reset drag area and remove cropped file on cancel
         observeEvent(input$cancel_crop, {
                 shiny::validate(need(!is.null(input$cancel_crop), message = FALSE))
-                last_drag(NULL)
+                crop_drag(NULL)
                 file.remove(
                         paste0("temp/", input$file, "_cropped.jpg")
                 )
         })
         
         #On picture change:
-        #Reset drag area; #Reset db insert flag
+        #Reset drag area, click,  db insert flag, labels / clicks tibble
         observeEvent(input$file, {
-                last_drag(NULL); coord_stored(FALSE)
-                # graph(NULL)
+                if(is.null(input$file) || input$file == wait_msg) return()
+                crop_drag(NULL); last_click(NULL); coord_stored(FALSE)
+                if (dim(clicks())[1]!=0)
+                        clicks(as_tibble(colnames(c("x", "y", "id"))))
+                
         })
         
         

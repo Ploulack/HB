@@ -9,13 +9,15 @@ gel_ui <- function(id) {
                         selectInput(ns("file"),
                                 label = "Select from latest gel captures",
                                 choices = list(msg)),
-                        tags$hr(id = ns("_bar"))
+                        tags$hr(id = ns("_bar")),
+                        uiOutput(outputId = ns("buttons"))
                         ),
                 
                 mainPanel(
                         plotOutput(ns("gel"),
-                                click = ns("click"),
+                                dblclick = ns("click"),
                                 brush = brushOpts(ns("drag_area"),
+                                        delay = 800,
                                         delayType = "debounce",
                                         resetOnNew = TRUE),
                                 height = 800)
