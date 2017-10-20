@@ -2,6 +2,15 @@ gel_server <- function(input, output, session, gtoken) {
         library(jpeg);library(grid);library(magrittr); library(magick)
         source("gel/gel_values.R")
         source("drive_helpers.R")
+        source("registry/registry_helpers.R")
+        source("registry/registry_values.R")
+        
+        if (!exists("registry")) {
+                registry <- registry_key_names(registry_url, registry_sheets)
+        }
+        
+        
+        # source("gel/parts_tagging.R")
         ns <- session$ns
         
         #Get mongo db connector for gel pictures data
@@ -39,29 +48,24 @@ gel_server <- function(input, output, session, gtoken) {
         
         #Create reactive to have only the last click
         #(to prevent return to NULL of the input)
-        #Store clicks with id to tie them to index later on
         last_click <- reactiveVal(value = NULL)
+        #Store clicks with id to tie them to index later on
         clicks <- reactiveVal(as_tibble(colnames(c("x", "y", "id"))))
         
         observeEvent(input$click, {
                 shiny::validate(need(!is.null(input$click), message = FALSE))
                 last_click(input$click)
-                
                 #Only start building labeling list if the crop view is perma
-                if (file_record()$entry_exists || coord_stored()) {
-                        clicks (clicks() %>% bind_rows(
-                                list("x" = last_click()$x,
-                                        "y" = last_click()$y,
-                                        "id" = dim(clicks())[1]+1)
-                        ))} else if (base_graph()$is_cropped){
+                if (file_record()$entry_exists || coord_stored()) return()
+                if (base_graph()$is_cropped) {
                                 showModal(modalDialog(
                                         title = "Save the cropped view",
                                         "Can't let you place labels unless the cropped view is permanently saved.
                                         Use the button on the left",
                                         footer = NULL,
                                         easyClose = TRUE))
-                        }
-        })
+                }
+                })
         
         #Create reactive to have only the last selected area
         #Use one for each usage type (crop image, label image)
@@ -226,7 +230,7 @@ gel_server <- function(input, output, session, gtoken) {
                         base_graph()$graph + annotate("text",
                                 x = clicks()$x,
                                 y = clicks()$y,
-                                label = clicks()$id,
+                                label = clicks()$label,
                                 size = 5,
                                 angle = 80,
                                 hjust = 0,
@@ -243,6 +247,53 @@ gel_server <- function(input, output, session, gtoken) {
                         paste0("temp/", input$file, "_cropped.jpg")
                 )
         })
+        
+        tag_sample_modal <- function(required_msg = NULL) {
+                showModal(
+                        modalDialog(
+                                radioButtons(inputId = ns("lane_type"),
+                                        label = "Select type",
+                                        choices = sample_types,
+                                        inline = TRUE),
+                                conditionalPanel(condition = paste0("input['",ns("lane_type"),"'] != 'Part'" ),
+                                        textInput(inputId =ns("sample_name"), #ns("non_part_name"),
+                                                label = "Enter descriptive label",
+                                                placeholder = "Short text to appear on picture")),
+                                conditionalPanel(condition = paste0("input['",ns("lane_type"),"'] == 'Part'" ),
+                                        selectizeInput(inputId = ns("sample_name"),
+                                                label = "Sample's Part key",
+                                                choices =  registry %>%
+                                                        pull(var = 2) %>%
+                                                        purrr::set_names(registry$KEY) %>%
+                                                        prepend(""))
+                                        ),
+                                if (!is.null(required_msg))
+                                        div(tags$b(required_msg, style = "color: red;")),
+                                footer = actionButton(inputId = ns("ok"),
+                                        label = "OK")
+                        )
+                )
+        }
+        
+        observeEvent(input$click, {
+                if (!base_graph()$is_cropped) return()
+                tag_sample_modal()
+        },ignoreInit = TRUE, ignoreNULL = TRUE)
+        
+        observeEvent(input$ok, {
+                if (input$sample_name == "") { #|| (input$lane_type != "Part" && input$non_part_name =="")
+                        tag_sample_modal("Need to complete")
+                } else {
+                        removeModal()
+                        clicks (clicks() %>% bind_rows(
+                                list("x" = last_click()$x,
+                                        "y" = last_click()$y,
+                                        "label" = input$sample_name)))
+                        
+                }
+                
+        })
+        
         
         #On picture change:
         #Reset drag area, click,  db insert flag, labels / clicks tibble

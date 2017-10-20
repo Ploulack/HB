@@ -10,7 +10,6 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
                 db <- db_from_environment(session, collection = "lab_experiments")
         }
         
-        # registry <- get_registry(gtoken)
         registry <- registry_key_names(registry_url, registry_sheets)
         
         #Get db records attached to new file
@@ -31,15 +30,15 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
         #A switch to keep track of db inserts
         data_switch <- reactiveVal(value = FALSE)
         
-        #Debug
+        #Display message to inform him to inform and store the data
         output$test <- renderText({
                 shiny::validate(need(!is.null(tecan_file()$is_kinetic), message = FALSE))
                 if(!data_switch()) {
-                        return("To the see the bar plots you need to fill the samples")
+                        return("To see the data & bar plot you need to fill the samples")
                 } else if(tecan_file()$is_kinetic) {
                         return(NULL)
                 } else {
-                        return("Entry already existed, displaying bar plot...")
+                        return("Entry already existed, displaying results...")
                 }
                 
         })
@@ -92,7 +91,7 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
                                 !(is.null(tecan_file()) |
                                                 is.null(file_record())),
                                 message = FALSE))
-                if (tecan_file()$file %in% c("Waiting from Google Drive")) return()
+                if (tecan_file()$file == wait_msg) return()
                 
                 #When user switches tecan file, display existing entries in input fields
                 if(file_record()$entry_exists) {

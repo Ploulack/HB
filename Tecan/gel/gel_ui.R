@@ -1,5 +1,5 @@
 library(shiny)
-msg <- "Waiting from Google Drive"
+
 gel_ui <- function(id) {
         ns <- NS(id)
         fluidPage(
@@ -8,7 +8,7 @@ gel_ui <- function(id) {
                                 label = "Check for new Gel Picture"),
                         selectInput(ns("file"),
                                 label = "Select from latest gel captures",
-                                choices = list(msg)),
+                                choices = list(wait_msg)),
                         tags$hr(id = ns("_bar")),
                         uiOutput(outputId = ns("buttons"))
                         ),

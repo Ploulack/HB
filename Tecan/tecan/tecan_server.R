@@ -40,14 +40,14 @@ tecan_server <- function(input, output, session, gtoken) {
                                 "is_kinetic" = experiment$raw$kinetic ))
         })
         
-        data_switch <- callModule(tecan_db_server,
+        data_tagged_and_saved <- callModule(tecan_db_server,
                 id = "Tecan_db",
                 tecan_file = tecan_file,
                 gtoken = gtoken)
         
         observeEvent(input$file, {
                 #Prevent re-download from Google Drive when the select files input is initialized or updated, 
-                if (input$file %in% c("Waiting from Google Drive")) return()
+                if (input$file == wait_msg) return()
                 else if (input$file == "") {
                         showModal(modalDialog(
                                 title = "No File",
@@ -84,6 +84,7 @@ tecan_server <- function(input, output, session, gtoken) {
                                 path)
                 }
                 
+                if (!data_tagged_and_saved()) return()
                 output$summary <- renderTable({
                         if (!experiment$raw$kinetic) {
                                 experiment$calculated$Results
@@ -93,12 +94,12 @@ tecan_server <- function(input, output, session, gtoken) {
                 }, digits = 2)
                 
                 output$hist <- renderPlot({
-                        graph_type <- (!experiment$raw$kinetic && data_switch())
+                        graph_type <- !experiment$raw$kinetic
                         if(graph_type) {
                                 df <- experiment$calculated$Results
-                        } else if (data_switch()) {
+                        } else {
                                 df <- experiment$raw$data$Batch_1$Measures
-                        } else return()
+                        }
                                 
                         ggplot(df) +
                                 aes(x = factor(Sample, levels = Sample),
@@ -124,7 +125,7 @@ tecan_server <- function(input, output, session, gtoken) {
                                 }
                         
                         
-                        # if (!experiment$raw$kinetic && data_switch()) {
+                        # if (!experiment$raw$kinetic && data_tagged_and_saved()) {
                         #         df <- experiment$calculated$Results
                         #         ggplot(df) +
                         #                 aes(x = factor(Sample, levels = Sample),
@@ -136,7 +137,7 @@ tecan_server <- function(input, output, session, gtoken) {
                         #                 scale_fill_discrete(limits = c('FALSE', 'TRUE')) +
                         #                 geom_text(aes(y = Concentration + mean(Concentration) * 0.03),
                         #                         label = format(df$Concentration, digits = 1))
-                        # } else if(data_switch()) {
+                        # } else if(data_tagged_and_saved()) {
                         #         df <- experiment$raw$data$Batch_1$Measures
                         #         ggplot(df) +
                         #                 aes(x = factor(Sample, levels = Sample),

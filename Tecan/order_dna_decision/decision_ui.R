@@ -3,8 +3,6 @@ decisionUI <- function(id) {
         #Create a function provided the id
         ns <- NS(id)
         
-        wait_msg <- "Waiting from Google Drive..."
-        
         sidebarLayout(
                 sidebarPanel(width = 3,
                         checkboxGroupInput(inputId = ns("lab_steps"),

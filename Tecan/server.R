@@ -33,10 +33,10 @@ function(session, input, output) {
         outputOptions(output, "token_exists", suspendWhenHidden = FALSE)
         
         #Only start the Google Auth button module if no token
-        
-        #Todo: retry the multi-button once tecan is backup
-        # gel_token <- callModule(google_button_server, "Auth")
         google_token <- callModule(google_button_server, "Auth")
+   
+        
+        
         
         #DECISION TOOL
         observeEvent(input$decision_go, {
