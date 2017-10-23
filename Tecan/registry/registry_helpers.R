@@ -29,15 +29,15 @@ registry_key_names <- function(registry_url, registry_sheets, file = registry_fi
         registry_synced <- file.mtime(file)
         outdated <- registry_modified > registry_synced
         
-        if (!file.exists(file) | outdated ) 
+        if (!file.exists(file) || outdated ) 
         {drive_download(file = as_id(registry_url),
                         path = file,
                 overwrite = TRUE)}
-        registry_key_names <- map_dfr(
+        map_dfr(
                 registry_sheets,
                 ~ read_xlsx(path = file,
-                        sheet = .x,
-                        range = cell_cols(1:2)
+                            sheet = .x,
+                            range = cell_cols(1:3)
                 )
         )
 }

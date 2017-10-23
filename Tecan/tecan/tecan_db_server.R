@@ -212,9 +212,8 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
                         }
                         print(jsonlite::prettify(str2))
                 } else {
-                        #Todo: Add file type TECAN vs GEL
                         str <- paste0(
-                                '{"file" : "',file_id,'", "name" : "', file_name,'",
+                                '{"file" : "',file_id,'", "name" : "', file_name,'", "type" : "tecan",
                                 "note" : "', input$note, '",
                                 "samples" : [',samples_str ,']
                                 }'
