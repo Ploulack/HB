@@ -52,16 +52,17 @@ init_graph <- function(path) {
                         plot.margin =unit(c(0,0,0,0),"npc"),
                         axis.line = element_blank(),
                         axis.ticks = element_blank(),
+                        #text = element_text(face = "bold", color = "white"),
                         axis.text= element_blank()
                 )
         return(graph)
 }
 
-display_remove_button <- function(ui_id, sample_key, sample_label, clicks, last_del, current_file, current_file_name) {
+display_remove_button <- function(ui_id, sample_key, sample_label, clicks, last_del, current_file) {
         #Add new sample's remove button and additional information
         insertUI(selector = "hr",
                  where = "afterEnd",
-                 ui = sample_ui(id = ui_id, sample_key = sample_key, sample_label, current_file_name))
+                 ui = sample_ui(id = ui_id, sample_key = sample_key, sample_label))
         cat("ui_id : ", ui_id, " ", "id :", sample_label, "\n")
         
         #Add logic attached to new sample's button
@@ -71,6 +72,5 @@ display_remove_button <- function(ui_id, sample_key, sample_label, clicks, last_
                    clicks = clicks,
                    sample_label = sample_label,
                    last_del = last_del,
-                   current_file = current_file,
-                  current_file_name = current_file_name)
+                   current_file = current_file)
 }

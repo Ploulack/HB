@@ -8,7 +8,7 @@ sample_ui <- function(id, sample_key, sample_name, current_file_name) {
 }
 
 #sample_server <- function(input, output, session, clicks, sample_label, last_del, current_file) {
-sample_server <- function(input, output, session, clicks, sample_label, last_del, current_file, current_file_name) {
+sample_server <- function(input, output, session, clicks, sample_label, last_del, current_file) {
         ns <- session$ns
        observeEvent(input$remove_btn, {
                 removeUI(selector = paste0("#", ns("lane_btn")))

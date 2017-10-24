@@ -205,7 +205,7 @@ gel_server <- function(input, output, session, gtoken) {
         })
         
         output$gel <- renderPlot({
-                if (!base_graph()$is_cropped){
+                if (!base_graph()$is_cropped) {
                         base_graph()$graph
                 } else {
                         # label_str <- with(clicks(), paste0(sample, "\n", key, " ", length,"bp"))
@@ -214,11 +214,18 @@ gel_server <- function(input, output, session, gtoken) {
                         base_graph()$graph + annotate("text",
                                 x = clicks()$x,
                                 y = clicks()$y,
-                                label = paste0(clicks()$sample, "\n", clicks()$key),
+                                label = paste0(clicks()$sample, "\n",
+                                               clicks()$key,ifelse(
+                                                       clicks()$type == "Part",
+                                                       paste0(" - ", clicks()$length, "bp"),
+                                                       "")),
                                 size = 5,
                                 angle = 80,
                                 hjust = 0,
-                                vjust = 0)
+                                vjust = 0,
+                                color = "white",
+                                fontface = "bold"
+                                )
                         
                 }
         })
@@ -287,7 +294,7 @@ gel_server <- function(input, output, session, gtoken) {
                                 "key" = sample_key,
                                 "type" = input$sample_type,
                                 "length" = length)
-                        clicks (clicks() %>% bind_rows(new_sample))
+                        clicks(clicks() %>% bind_rows(new_sample))
                         
                         # Upload to gel_db the label coordinates
                         save_sample(db = gel_db,
@@ -318,18 +325,10 @@ gel_server <- function(input, output, session, gtoken) {
         #On picture change:
         #Reset drag area, click,  db insert flag, labels / clicks tibble
         observeEvent(input$file, {
-                if(is.null(input$file) || input$file == wait_msg) return()
+                if (is.null(input$file) || input$file == wait_msg) return()
                 
                 #Resetting
                 crop_drag(NULL); last_click(NULL); coord_stored(FALSE); last_del(NULL)
-                
-                # walk(clicks()$sample, function(x) {
-                #         #removeUI(selector = paste0("#", ns("lane_btn")))
-                #         selc <- paste0("#", "Gel-",x,"-lane_btn")
-                #         cat("selector", selc)
-                #         removeUI(selector = selc)
-                # })
-                
                 
                 #initializing...
                 gel_pics$current_file <- gel_pics$files %>%

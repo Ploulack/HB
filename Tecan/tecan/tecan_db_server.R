@@ -1,4 +1,4 @@
-tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
+tecan_db_server <- function(input, output, session, tecan_file, gtoken, data_switch) {
         library(purrr); library(stringr)
         
         source("helpers/mongo_helpers.R")
@@ -27,15 +27,12 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
                 }
         })
         
-        #A switch to keep track of db inserts
-        data_switch <- reactiveVal(value = FALSE)
-        
         #Display message to inform him to inform and store the data
         output$test <- renderText({
                 shiny::validate(need(!is.null(tecan_file()$is_kinetic), message = FALSE))
-                if(!data_switch()) {
+                if (!data_switch()) {
                         return("To see the data & bar plot you need to fill the samples")
-                } else if(tecan_file()$is_kinetic) {
+                } else if (tecan_file()$is_kinetic) {
                         return(NULL)
                 } else {
                         return("Entry already existed, displaying results...")
@@ -48,7 +45,7 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
                                 is.null(tecan_file()$samples) |
                                 is.null(tecan_file()$is_kinetic)), message = FALSE) ) 
                 ns <- session$ns
-                if(!tecan_file()$is_kinetic) {
+                if (!tecan_file()$is_kinetic) {
                         output$keys <- renderUI({
                                 if (tecan_file()$is_kinetic) return()
                                 fluidPage(
@@ -170,11 +167,12 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
         observeEvent(tecan_file(), {
                 shiny::validate((need(!is.null(tecan_file()$is_kinetic), message = FALSE)))
                 if (file_record()$entry_exists || tecan_file()$is_kinetic) {
+                        browser()
                         data_switch(TRUE)
                 } else {
                         data_switch(FALSE)
                 }
-        })
+        }, ignoreInit = TRUE)
         
         #Insert or Update in mongo db
         observeEvent(input$update ,{
@@ -225,10 +223,9 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken) {
                                 showNotification(ui = sprintf("New entry for file %s", file_name) ,
                                         duration = 3,
                                         type = "message")
+                                browser()
                                 data_switch(TRUE)
                         }
                 }
         })
-        
-        return(data_switch)
 }

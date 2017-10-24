@@ -40,10 +40,15 @@ tecan_server <- function(input, output, session, gtoken) {
                                 "is_kinetic" = experiment$raw$kinetic ))
         })
         
-        data_tagged_and_saved <- callModule(tecan_db_server,
+        #A switch to keep track of db inserts
+        data_tagged_and_saved <- reactiveVal(value = FALSE)
+        
+        callModule(tecan_db_server,
                 id = "Tecan_db",
-                tecan_file = tecan_file,
-                gtoken = gtoken)
+                #tecan_file = tecan_file,
+                tecan_file = isolate(tecan_file()),
+                gtoken = gtoken,
+                data_switch = data_tagged_and_saved)
         
         observeEvent(input$file, {
                 #Prevent re-download from Google Drive when the select files input is initialized or updated, 
@@ -72,20 +77,22 @@ tecan_server <- function(input, output, session, gtoken) {
         })
         
         # Todo: une horreur, tout reprendre clean
-        observeEvent(c(input$absorbance,input$path, experiment$raw),{
+        observeEvent(c(input$absorbance,input$path, experiment$raw, data_tagged_and_saved()),{
                 if (is.null(experiment$raw$data) ) return()
                 
                 absorbance <- as.double(input$absorbance)
                 path <- as.double(input$path)
                 
                 if (!experiment$raw$kinetic) {
-                        experiment$calculated <-calc_values(experiment$raw$data,
+                        experiment$calculated <- calc_values(experiment$raw$data,
                                 absorbance,
                                 path)
                 }
                 
-                if (!data_tagged_and_saved()) return()
+                
+                
                 output$summary <- renderTable({
+                        if (!data_tagged_and_saved()) return()
                         if (!experiment$raw$kinetic) {
                                 experiment$calculated$Results
                         } else {
@@ -94,8 +101,9 @@ tecan_server <- function(input, output, session, gtoken) {
                 }, digits = 2)
                 
                 output$hist <- renderPlot({
+                        if (!data_tagged_and_saved()) return()
                         graph_type <- !experiment$raw$kinetic
-                        if(graph_type) {
+                        if (graph_type) {
                                 df <- experiment$calculated$Results
                         } else {
                                 df <- experiment$raw$data$Batch_1$Measures
@@ -152,7 +160,14 @@ tecan_server <- function(input, output, session, gtoken) {
                         # }
                 })
                 
+                observeEvent(data_tagged_and_saved(),{
+                        showNotification(ui = str_interp("data tagged: ${data_tagged_and_saved()}") ,
+                                         duration = 4,
+                                         type = "message")
+                }, ignoreInit = TRUE)
+                
                 output$batch <- renderDataTable({
+                        if (!data_tagged_and_saved()) return()
                         if (!experiment$raw$kinetic) {
                                         return(experiment$calculated$Table)
                         } else {
