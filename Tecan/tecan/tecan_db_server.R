@@ -16,11 +16,11 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken, data_swi
         file_record <- eventReactive(c(input$update, tecan_file()), {
                 shiny::validate(
                         need(
-                                !is.null(tecan_file()$is_kinetic),
+                                !is.null(tecan_file()$type),
                                 message = FALSE)
                 )
                 #Display db ui only if File is not kinetic...
-                if (!tecan_file()$is_kinetic) {
+                if (tecan_file()$type == "DNA Quantification") {
                         return(mongo_file_entry(db, tecan_file()$file))
                 } else {
                         return(list("entry_exists" = FALSE))
@@ -29,25 +29,26 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken, data_swi
         
         #Display message to inform him to inform and store the data
         output$test <- renderText({
-                shiny::validate(need(!is.null(tecan_file()$is_kinetic), message = FALSE))
+                shiny::validate(need(!is.null(tecan_file()$type), message = FALSE))
                 if (!data_switch()) {
                         return("To see the data & bar plot you need to fill the samples")
-                } else if (tecan_file()$is_kinetic) {
+                } else if (!tecan_file()$type == "DNA Quantification") {
                         return(NULL)
                 } else {
-                        return("Entry already existed, displaying results...")
+                        return("Displaying results...")
                 }
                 
         })
         #Create inputs and related textOutputs
         observeEvent(c(tecan_file()), {
-                shiny::validate(need(!(is.null(registry) |
-                                is.null(tecan_file()$samples) |
-                                is.null(tecan_file()$is_kinetic)), message = FALSE) ) 
+                shiny::validate(need(!is.null(registry) &&
+                                !is.null(tecan_file()$samples) &&
+                                !is.null(tecan_file()$type),
+                                message = "Something wrong with registry or tecan file")) 
                 ns <- session$ns
-                if (!tecan_file()$is_kinetic) {
+                if (tecan_file()$type == "DNA Quantification") {
                         output$keys <- renderUI({
-                                if (tecan_file()$is_kinetic) return()
+                                if (!tecan_file()$type == "DNA Quantification" ) return()
                                 fluidPage(
                                         fluidRow(
                                                 tagList(
@@ -165,9 +166,9 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken, data_swi
         
         #Reset data_switch for each file
         observeEvent(tecan_file(), {
-                shiny::validate((need(!is.null(tecan_file()$is_kinetic), message = FALSE)))
-                if (file_record()$entry_exists || tecan_file()$is_kinetic) {
-                        browser()
+                shiny::validate((need(!is.null(tecan_file()$type), message = FALSE)))
+                if (file_record()$entry_exists || !tecan_file()$type == "DNA Quantification") {
+                        #browser()
                         data_switch(TRUE)
                 } else {
                         data_switch(FALSE)
@@ -201,7 +202,7 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken, data_swi
                                 }')
                         print("update")
                         update_log <- db$update(str1,str2)
-                        browser()
+                        #browser()
                         if (update_log) {
                                 showNotification(ui = sprintf("Updated entry for file %s", file_name) ,
                                         duration = 3,
@@ -223,7 +224,7 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken, data_swi
                                 showNotification(ui = sprintf("New entry for file %s", file_name) ,
                                         duration = 3,
                                         type = "message")
-                                browser()
+                                #browser()
                                 data_switch(TRUE)
                         }
                 }

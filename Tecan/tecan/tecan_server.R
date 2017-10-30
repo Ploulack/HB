@@ -5,22 +5,30 @@ tecan_server <- function(input, output, session, gtoken) {
         source("tecan/tecan_values.R")
         source("drive_helpers.R")
         source("tecan/tecan_db_server.R")
+        source("helpers/delete_file_button_module.R")
+        source("helpers/mongo_helpers.R")
+        #Only initiate mongo connexion when needed
+        if (!exists("db")) {
+                source("mongo/db_values.R")
+                db <- db_from_environment(session, collection = "lab_experiments")
+        }
+        
+        ns <- session$ns
         
         experiment <- reactiveValues()
         db_files <- reactiveValues()
-        tecan <- reactiveValues(files = NULL)
-        # cat("drive user ", unlist(googledrive::drive_user()))
-        
-        choiceFiles <- reactive({
-                input$refresh
-                #Todo: change to token from module call...
-                tecan$files <- get_ordered_filenames_from_drive(as_id(drive_tecanURL))
-                tecan$files$id %>%
-                        set_names(tecan$files$exp_date)
+        tecan <- reactiveValues(files = get_ordered_filenames_from_drive(as_id(drive_tecanURL)))
+        removed_files <- reactiveVal(NULL)
+
+        choiceFiles <- eventReactive( c(input$refresh, removed_files(), tecan$files),{
+                dat <- tecan$files %>%
+                        filter(id != if (is.null(removed_files())) {""} else {removed_files()}) %>%
+                        select(id, exp_date)
+                dat$id %>% set_names(dat$exp_date)
         })
         
         
-        observeEvent(c(choiceFiles, input$refresh), {
+        observeEvent(c(choiceFiles(), input$refresh), {
                 choices <- choiceFiles()
                 updateSelectInput(session, "file",
                         choices = choices,
@@ -37,7 +45,7 @@ tecan_server <- function(input, output, session, gtoken) {
                                 "file" = input$file,
                                 "file_dribble" = tecan$files %>% filter(id == input$file),
                                 "samples" = experiment$raw$data$Batch_1$Measures$Sample,
-                                "is_kinetic" = experiment$raw$kinetic ))
+                                "type" = experiment$raw$type))
         })
         
         #A switch to keep track of db inserts
@@ -45,10 +53,16 @@ tecan_server <- function(input, output, session, gtoken) {
         
         callModule(tecan_db_server,
                 id = "Tecan_db",
-                #tecan_file = tecan_file,
-                tecan_file = isolate(tecan_file()),
+                tecan_file = tecan_file,
                 gtoken = gtoken,
                 data_switch = data_tagged_and_saved)
+        
+       callModule(module = delete_exp_files,
+                   id = "delete_button",
+                   tecan_file = tecan_file,
+                   db = db,
+                   files_list = choiceFiles(),
+                  removed_files)
         
         observeEvent(input$file, {
                 #Prevent re-download from Google Drive when the select files input is initialized or updated, 
@@ -61,19 +75,19 @@ tecan_server <- function(input, output, session, gtoken) {
                         )
                         )
                 } else {
-                        experiment$raw <- tecan_extract(input$file, token, tecan$files)
+                        experiment$raw <- tecan_extract(input$file, tecan$files)
+                        if (exists("data_tagged_and_saved")) rm("data_tagged_and_saved")
+                        data_tagged_and_saved <- reactiveVal(FALSE)
                 }
-        })
+        }, priority = 1)
         
         # Tell user if it's a 260 or 600nm
         output$type <- renderText({
                 if (is.null(experiment$raw)) {
                         return()
+                } else {
+                        experiment$raw$type
                 }
-                if_else(
-                        experiment$raw$kinetic,
-                        "600nm",
-                        "PCR Quantification - 260nm")
         })
         
         # Todo: une horreur, tout reprendre clean
@@ -83,17 +97,15 @@ tecan_server <- function(input, output, session, gtoken) {
                 absorbance <- as.double(input$absorbance)
                 path <- as.double(input$path)
                 
-                if (!experiment$raw$kinetic) {
+                if (experiment$raw$type == "DNA Quantification") {
                         experiment$calculated <- calc_values(experiment$raw$data,
                                 absorbance,
                                 path)
                 }
                 
-                
-                
                 output$summary <- renderTable({
                         if (!data_tagged_and_saved()) return()
-                        if (!experiment$raw$kinetic) {
+                        if (experiment$raw$type == "DNA Quantification") {
                                 experiment$calculated$Results
                         } else {
                                 experiment$raw$data$Batch_1$Measures
@@ -102,8 +114,10 @@ tecan_server <- function(input, output, session, gtoken) {
                 
                 output$hist <- renderPlot({
                         if (!data_tagged_and_saved()) return()
-                        graph_type <- !experiment$raw$kinetic
-                        if (graph_type) {
+                        
+                        is_DNAquant <- experiment$raw$type == "DNA Quantification"
+                        
+                        if (is_DNAquant) {
                                 df <- experiment$calculated$Results
                         } else {
                                 df <- experiment$raw$data$Batch_1$Measures
@@ -111,16 +125,16 @@ tecan_server <- function(input, output, session, gtoken) {
                                 
                         ggplot(df) +
                                 aes(x = factor(Sample, levels = Sample),
-                                        y = if(graph_type) {Concentration}
+                                        y = if (is_DNAquant) {Concentration}
                                         else {Value},
-                                        fill = if(graph_type) {Ratio > 1.7 & Ratio <2.0}
+                                        fill = if (is_DNAquant) {Ratio > 1.7 & Ratio < 2.0}
                                         else {Value > .2}) +
                                 geom_bar(stat = "identity") +
-                                theme(legend.position= c(.9,.9)) +
+                                theme(legend.position = c(.9,.9)) +
                                 scale_x_discrete("Samples") + 
-                                ylab (if_else(graph_type, "Concentration", "Value")) +
+                                ylab(if_else(is_DNAquant, "Concentration", "Value")) +
                                 scale_fill_discrete(limits = c('FALSE', 'TRUE')) +
-                                if (graph_type) {
+                                if (is_DNAquant) {
                                         geom_text(
                                                 aes( y = Concentration + mean(Concentration) * 0.03),
                                                 label = format(df$Concentration, digits = 1)
@@ -131,44 +145,11 @@ tecan_server <- function(input, output, session, gtoken) {
                                                 label = format(df$Value, digits = 1)
                                         )
                                 }
-                        
-                        
-                        # if (!experiment$raw$kinetic && data_tagged_and_saved()) {
-                        #         df <- experiment$calculated$Results
-                        #         ggplot(df) +
-                        #                 aes(x = factor(Sample, levels = Sample),
-                        #                         y = Concentration,
-                        #                         fill = (Ratio > 1.7 & Ratio <2.0)) +
-                        #                 geom_bar(stat = "identity") +
-                        #                 theme(legend.position= c(.9,.9)) +
-                        #                 scale_x_discrete("Samples") +
-                        #                 scale_fill_discrete(limits = c('FALSE', 'TRUE')) +
-                        #                 geom_text(aes(y = Concentration + mean(Concentration) * 0.03),
-                        #                         label = format(df$Concentration, digits = 1))
-                        # } else if(data_tagged_and_saved()) {
-                        #         df <- experiment$raw$data$Batch_1$Measures
-                        #         ggplot(df) +
-                        #                 aes(x = factor(Sample, levels = Sample),
-                        #                         y = Value,
-                        #                         fill = Value > .2) +
-                        #                 geom_bar(stat = "identity") +
-                        #                 theme(legend.position= c(.9,.9)) +
-                        #                 scale_x_discrete("Samples") +
-                        #                 scale_fill_discrete(limits = c('FALSE', 'TRUE')) +
-                        #                 geom_text(aes(y = Concentration + mean(Concentration) * 0.03),
-                        #                         label = format(df$Concentration, digits = 1))
-                        # }
                 })
-                
-                observeEvent(data_tagged_and_saved(),{
-                        showNotification(ui = str_interp("data tagged: ${data_tagged_and_saved()}") ,
-                                         duration = 4,
-                                         type = "message")
-                }, ignoreInit = TRUE)
                 
                 output$batch <- renderDataTable({
                         if (!data_tagged_and_saved()) return()
-                        if (!experiment$raw$kinetic) {
+                        if (experiment$raw$type == "DNA Quantification") {
                                         return(experiment$calculated$Table)
                         } else {
                                         NULL

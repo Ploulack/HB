@@ -3,12 +3,17 @@ library(shiny)
 gel_ui <- function(id) {
         ns <- NS(id)
         fluidPage(
-                sidebarPanel(#Todo: Put on two different columns so that they're aligned
+                sidebarPanel(width = 3,
+                        #Todo: Put on two different columns so that they're aligned
                         actionButton(ns("refresh"),
                                 label = "Check for new Gel Picture"),
                         selectInput(ns("file"),
                                 label = "Select from latest gel captures",
                                 choices = list(wait_msg)),
+                        # radioButtons(inputId = ns("picture_quality"),
+                        #              label = "Change picture quality",
+                        #              choiceNames =  c("low", "fast"),
+                        #              choiceValues = c("25", "75")),
                         tags$hr(id = ns("_bar")),
                         uiOutput(outputId = ns("buttons"))
                         ),

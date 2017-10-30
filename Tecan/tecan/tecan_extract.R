@@ -3,13 +3,13 @@ require(stringr)
 
 source("drive_helpers.R")
 
-is_kinetic <- function(xml_file) {
-        is_kinetic <- xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
+tecan_type <- function(xml_file) {
+        type <- xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
                 xml_attrs() %>%
-                keep(~.x["Name"] == "Wavelength") %>%
-                str_detect("600") %>%
-                any()
-        is_kinetic
+                keep(~.x["Name"] %in% c("Wavelength", "Emission Wavelength")) %>%
+                map_chr("Value") %>%
+                purrr::pluck(1)
+        names(tecan_protocols[tecan_protocols == type])
 }
 
 
@@ -26,7 +26,7 @@ dl_tecan_xml <- function(dribble, folder) {
 }
 
 
-tecan_extract <- function(input_file, token, dribble) {
+tecan_extract <- function(input_file, dribble) {
         folder <- "temp/"
         #Todo: find the input_file in the dribble
         tecan <- dl_tecan_xml(dribble %>% filter(id == input_file), folder)
@@ -41,7 +41,7 @@ tecan_extract <- function(input_file, token, dribble) {
                 
                 wavelength <- xml_find_all(x,"Parameters/Parameter") %>%
                         xml_attrs() %>%
-                        keep(~.x["Name"] == "Wavelength") %>%
+                        keep(~.x["Name"] %in% c("Wavelength", "Emission Wavelength")) %>%
                         map_chr("Value")
                 
                 list(Measures = data_frame(Sample = nodes %>% xml_attr("Pos"),
@@ -53,7 +53,13 @@ tecan_extract <- function(input_file, token, dribble) {
                 "Wavelength" = wavelength)
         }) %>% set_names(nm = paste0("Batch_", seq_along(.)))
         
-        list("data" = data, "kinetic" = is_kinetic(tecan))
+        if (nrow(data$Batch_1$Measures) == 0 || length(data$Batch_1$Wavelength) == 0) {
+                showNotification(ui = "Unknown file structure",
+                        type = "warning")
+                return()
+        }
+        
+        list("data" = data, "type" = tecan_type(tecan))
 }
 
 calc_values <- function(list, molar_absorbance, path_length) {

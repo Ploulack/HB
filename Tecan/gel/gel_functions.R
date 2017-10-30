@@ -16,7 +16,7 @@ save_delete <- function(is_saving, db, sample = NULL, file_id, file_name, sample
                                 type = "message")
                 }        
         } else {
-                str2 <- str2 <- paste0(
+                str2 <- paste0(
                         '{"$pull" : 
                         {"labels" : {"sample" : "',sample_label,'"}}
                         }')
