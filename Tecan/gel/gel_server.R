@@ -279,8 +279,9 @@ gel_server <- function(input, output, session, gtoken) {
                                 ),
                                 if (!is.null(required_msg))
                                         div(tags$b(required_msg, style = "color: red;")),
-                                footer = actionButton(inputId = ns("ok"),
-                                                      label = "OK")
+                                footer = taglist( actionButton(inputId = ns("ok"),
+                                                      label = "OK"),
+                                                  modalButton("Cancel")
                         )
                 )
         }
