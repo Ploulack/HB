@@ -74,7 +74,7 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken, data_swi
                         })
                         # tecan_protocols_with_db[2] = NADH...
                 } else if (tecan_file()$type == tecan_protocols_with_db[2]) {
-                        #TODO: add Remove UI for the note UI
+                        removeUI(selector = str_interp("#${ns('H2O2_note')}"),multiple = TRUE)
                         
                         if (file_record()$entry_exists) {
                                 samples(file_record()$entry$samples[[1]] %>% as_tibble())
@@ -94,7 +94,7 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken, data_swi
                         #Display the note text input
                         insertUI(selector =  "#Tecan-widgets_bar",
                                  where = "beforeBegin",
-                                 ui = textInput(inputId = ns("H2O2_note"),
+                                 ui =  textInput(inputId = ns("H2O2_note"),
                                                 label = "Optional note",
                                                 value = file_record()$entry$note))
                         
@@ -114,12 +114,12 @@ tecan_db_server <- function(input, output, session, tecan_file, gtoken, data_swi
                         input_H2O2 <- debounce(reactive({input$H2O2_note}), 1500)
                         #Save note when changed
                         observeEvent(input_H2O2(), {
-                                browser()
+                                if (input_H2O2() == file_record()$entry$note) return()
                                 str1 <- str_interp('{"file" : "${tecan_file()$file}"}')
                                 str2 <- str_interp('{"$set" : {"note" : "${input_H2O2()}"}}')
                                 note_upd <- db$update(str1, str2)
                                 if (note_upd) {
-                                        showNotification(ui = "Updated note",
+                                        showNotification(ui = str_interp("Updated note with '${input_H2O2()}'"),
                                                          duration = 3,
                                                          type = "message")
                                 }
