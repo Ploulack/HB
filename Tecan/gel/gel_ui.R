@@ -5,8 +5,10 @@ gel_ui <- function(id) {
         fluidPage(
                 sidebarPanel(width = 3,
                         #Todo: Put on two different columns so that they're aligned
-                        actionButton(ns("refresh"),
-                                label = "Check for new Gel Picture"),
+                        conditionalPanel(condition = paste0("input['", ns("file"), "'] != '", wait_msg, "'"),
+                                actionButton(ns("refresh"),
+                                                      label = "Check for new Gel Picture")),
+                        
                         selectInput(ns("file"),
                                 label = "Select from latest gel captures",
                                 choices = list(wait_msg)),

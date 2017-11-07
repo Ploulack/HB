@@ -279,9 +279,10 @@ gel_server <- function(input, output, session, gtoken) {
                                 ),
                                 if (!is.null(required_msg))
                                         div(tags$b(required_msg, style = "color: red;")),
-                                footer = taglist( actionButton(inputId = ns("ok"),
-                                                      label = "OK"),
+                                footer = tagList( actionButton(inputId = ns("ok"),
+                                                               label = "OK"),
                                                   modalButton("Cancel")
+                                )
                         )
                 )
         }
@@ -338,7 +339,6 @@ gel_server <- function(input, output, session, gtoken) {
                                     sample_label = sample_label)
                         
                         display_remove_button(ui_id = ns(sample_label),
-                                #ui_id = ns(paste0(gel_pics$current_file,sample_label)),
                                               sample_key = sample_key,
                                               sample_label = sample_label,
                                               clicks = clicks,

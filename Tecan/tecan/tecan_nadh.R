@@ -23,6 +23,7 @@ pop_calibration_values <- function(calibration, required_msg = NULL, ns) {
 }
 
 nadh_detection <- function(nadh, cal_conc, input, output, ns) {
+        measured_samples <- reactiveVal(NULL)
         nadh <- nadh %>%
                 rename(Fluorescence = Value)
         
@@ -46,8 +47,9 @@ nadh_detection <- function(nadh, cal_conc, input, output, ns) {
         # samples <- reactiveVal(value = nadh[-calibration_idx, ])
         # bind_cols(samples(),predict(nadh_model, samples())) %>%
         #         samples()
-        samples <- bind_cols(nadh[-calibration_idx, ], pred = predict(nadh_model, nadh[-calibration_idx, ])) %>%
-                reactiveVal()
+        measured_samples(bind_cols(nadh[-calibration_idx, ],
+                                   predicted_uM = predict(nadh_model, nadh[-calibration_idx, ]))
+                         )
         
         observeEvent(input$ok, {
                 # Gather input values
@@ -64,7 +66,7 @@ nadh_detection <- function(nadh, cal_conc, input, output, ns) {
                 calibr_react(calibr_react() %>%
                                      mutate(uM = input_vals))
                 nadh_model <- lm(uM ~ Fluorescence, data = calibr_react())
-                samples(
+                measured_samples(
                         bind_cols(nadh[-calibration_idx, ], predicted_uM = predict(nadh_model, nadh[-calibration_idx, ]))
                 )
                         
@@ -82,11 +84,88 @@ nadh_detection <- function(nadh, cal_conc, input, output, ns) {
                 ggplot(calibr_react()) +
                         aes(y = uM, x = Fluorescence) +
                         geom_point() +
-                        stat_smooth(method = "lm", se = FALSE, )
-                
+                        stat_smooth(method = "lm", se = FALSE)
         })
         
         output$samples_predicted <- renderTable({
-                samples()
+                measured_samples()
         })
+        #return(measured_samples())
 }
+
+sample_widget_ui <- function(id, sample_well, sample_key) {
+        ns <- NS(id)
+        column(width = 2,
+               tags$div(id = ns("widget"),
+                 textInput(inputId = ns("well_key"),
+                           label = sample_well,
+                           value = sample_key)
+                 )
+        )
+}
+
+sample_widget <- function(input, output, session, sample_well, sample_key, samples, tecan_file, db) {
+        ns <- session$ns
+        
+        # Slow text input value update
+        reactive_key <- reactive({input$well_key})
+        input_key <- debounce(reactive_key, 1500)
+        
+        observeEvent(input_key(), {
+                if (is.null(input_key())) return()
+                if (input_key() == sample_key) return()
+                #Todo: currently the whole 'samples' updating is unused and probably un-needed
+                #the idea was taken from the work on gel, but here the number of wells is fixed...
+                samples(
+                        samples() %>%
+                                filter(Sample != sample_well) %>%
+                                bind_rows(as_tibble(list(Sample = sample_well, Key = input_key())))
+                )
+                
+                str1 <- str_interp('{ "file" : "${tecan_file()$file}", "samples.Sample" : "${sample_well}"}')
+                                   
+                str2 <- str_interp('{"$set" : {"samples.$.Key" : "${input_key()}"}}')
+                upd_check <- db$update(str1, str2)
+                if (upd_check) {
+                showNotification(ui = str_interp("Updated ${sample_well} with ${input_key()}"),
+                                 duration = 3,
+                                 type = "message")
+                }
+
+        })
+        
+        observeEvent(tecan_file()$file, {
+                removeUI(selector = paste0("#", ns("widget")))
+        }, ignoreInit = TRUE, priority = 1)
+        
+}
+
+display_sample_widget <- function(sample_well, sample_key, samples, tecan_file, ns, db) {
+        insertUI(selector = "#Tecan-widgets_bar",
+                  where = "beforeEnd",
+                  ui = sample_widget_ui(id = ns(sample_well), sample_well, sample_key)
+                  )
+                
+        callModule(module = sample_widget,
+                   id = sample_well,
+                   sample_well = sample_well,
+                   sample_key = sample_key,
+                   samples = samples,
+                   tecan_file,
+                   db)
+}
+
+db_create_entry <- function(db, tecan_file, samples) {
+        samples_str <- jsonlite::toJSON(samples(), dataframe = 'rows')
+        str1 <- str_interp('{"file" : "${tecan_file()$file}" }')
+        str2 <- str_interp('{"$set": {
+                           "name" : "${tecan_file()$file_dribble$name}",
+                           "type": "${tecan_file()$type}",
+                           "note" : "",
+                           "samples":${samples_str}}}')
+        db$update(str1, str2, upsert = TRUE)
+        showNotification(ui = str_interp("Created db entry for ${tecan_file()$file_dribble$name}"),
+                         duration = 3,
+                         type = "message")
+}
+

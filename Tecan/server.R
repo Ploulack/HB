@@ -44,22 +44,17 @@ function(session, input, output) {
                 callModule(decision_server, "decision", google_token())
                 })
         
-        # # MS
-        # source("MS/MS_server.R")
-        # callModule(MS_server, "MS")
-
-        
         # TEKAN
         observeEvent(input$tecan_go, {
-                shiny::validate(need((input$tecan_go>0), message = FALSE))
+                shiny::validate(need((input$tecan_go > 0), message = FALSE))
                 shiny::validate(need(!is.null(google_token()), message = FALSE))
                 source("tecan/tecan_server.R")
-                callModule(tecan_server, "Tecan", gtoken = readRDS(token_name))
+                callModule(tecan_server, "Tecan",gtoken = readRDS(token_name))
         })
         
         # GEL
         observeEvent(input$gel_go, {
-                shiny::validate(need((input$gel_go>0), message = FALSE))
+                shiny::validate(need((input$gel_go > 0), message = FALSE))
                 source("gel/gel_server.R")
                 callModule(gel_server, "Gel", gtoken = google_token())
         })

@@ -49,21 +49,21 @@ init_graph <- function(path) {
                         aspect.ratio = dim(img)[1]/dim(img)[2],
                         # aspect.ratio = 1,
                         # aspect.ratio = (1/16),
-                        plot.margin =unit(c(0,0,0,0),"npc"),
+                        plot.margin = unit(c(0,0,0,0),"npc"),
                         axis.line = element_blank(),
                         axis.ticks = element_blank(),
                         #text = element_text(face = "bold", color = "white"),
-                        axis.text= element_blank()
+                        axis.text = element_blank()
                 )
         return(graph)
 }
 
 display_remove_button <- function(ui_id, sample_key, sample_label, clicks, last_del, current_file) {
         #Add new sample's remove button and additional information
-        insertUI(selector = "hr",
+        #insertUI(selector = "hr",
+        insertUI(selector = "#Gel-_bar",
                  where = "afterEnd",
                  ui = sample_ui(id = ui_id, sample_key = sample_key, sample_label))
-        cat("ui_id : ", ui_id, " ", "id :", sample_label, "\n")
         
         #Add logic attached to new sample's button
         callModule(module =  sample_server,

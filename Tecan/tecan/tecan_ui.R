@@ -16,40 +16,48 @@ tecan_ui <- function(id) {
                                                        #width = "35%",
                                                        placeholder = "in cm"), offset = 1)
                                       ),
-                        fluidRow(
-                                actionButton(ns("refresh"),
-                                label = "Check for new files"),
-                                delete_exp_files_ui(ns("delete_button"))),
+                             conditionalPanel(
+                                     condition = paste0("input['", ns("file"), "'] != '", wait_msg, "'"),
+                                     fluidRow(
+                                             actionButton(ns("refresh"),
+                                                          label = "Check for new files"),
+                                             delete_exp_files_ui(ns("delete_button"))
+                             )
+                             ),
+                             
+                             
                         selectInput(ns("file"), "Latest Tecan Files",
                                 choices = list(wait_msg),
                                 width = "70%"),
                         tags$hr(),
                         conditionalPanel(
-                                #condition = "output.type == 'NADH Detection'",
                                 condition = paste0("output['",ns("type"),"'] == 'NADH Detection'" ),
                                 actionButton(inputId = ns("open_calibration"),
                                              label = "Edit Concentrations"),
                                 tableOutput(ns("calibration"))
                         ),
                         conditionalPanel(
-                                # condition = "output.type != 'NADH Detection'",
                                 condition = paste0("output['",ns("type"),"'] != 'NADH Detection'"),
                         tableOutput(ns("summary"))
                         )
                 ),
                 mainPanel(
-                        tecan_db_ui(ns("Tecan_db")),
                         titlePanel(
                                 textOutput(ns("type"))
                         ),
                         conditionalPanel(
-                                # condition = "output.type != 'NADH Detection'",
                                 condition = paste0("output['",ns("type"),"'] != 'NADH Detection'"),
+                                tecan_db_ui(ns("Tecan_db")),
                                 plotOutput(ns("hist")),
                                 tableOutput(ns("batch"))
                                 ),
+                        conditionalPanel(
+                                condition = paste0("output['",ns("type"),"'] == 'NADH Detection'" ),
                         plotOutput(ns("regression_graph")),
-                        tableOutput(ns("samples_predicted"))
+                        tableOutput(ns("samples_predicted")),
+                        tags$div(id = ns("widgets_bar"),
+                                 tags$hr())
+                        )
                 )
         )
 }

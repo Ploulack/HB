@@ -34,7 +34,8 @@ tecan_server <- function(input, output, session, gtoken) {
                 updateSelectInput(session, "file",
                                   choices = choices,
                                   selected = ifelse(input$refresh == 0,
-                                                    head(choices,1),
+                                                    choices[10],
+                                                    #head(choices,1),
                                                     input$file)
                 )
                 
@@ -46,17 +47,21 @@ tecan_server <- function(input, output, session, gtoken) {
                                 "file" = input$file,
                                 "file_dribble" = tecan$files %>% filter(id == input$file),
                                 "samples" = experiment$raw$data$Batch_1$Measures$Sample,
+                                "measures" = experiment$raw$data$Batch_1$Measures,
                                 "type" = experiment$raw$type))
         })
         
         #A switch to keep track of db inserts
         data_tagged_and_saved <- reactiveVal(value = FALSE)
-        
+
         callModule(tecan_db_server,
                    id = "Tecan_db",
                    tecan_file = tecan_file,
                    gtoken = gtoken,
-                   data_switch = data_tagged_and_saved)
+                   data_switch = data_tagged_and_saved
+        )
+        
+       #TODO: MAKE module for the whole H202 thing, then back port the tecan_db DNA detection into it
         
         callModule(module = delete_exp_files,
                    id = "delete_button",
@@ -83,12 +88,8 @@ tecan_server <- function(input, output, session, gtoken) {
         }, priority = 1)
         
         # Tell user if it's a 260 or 600nm
-        output$type <- reactive({
-                if (is.null(experiment$raw)) {
-                        return()
-                } else {
+        output$type <- eventReactive(experiment$raw, {
                         experiment$raw$type
-                }
         })
         outputOptions(output, "type", suspendWhenHidden = FALSE)
         
@@ -100,13 +101,13 @@ tecan_server <- function(input, output, session, gtoken) {
                 path <- as.double(input$path)
                 
                 if (experiment$raw$type == "NADH Detection") {
-                        nadh_detection(nadh = experiment$raw$data$Batch_1$Measures,
+                                nadh_detection(nadh = experiment$raw$data$Batch_1$Measures,
                                        cal_conc = calibration_concentrations,
                                        input = input,
                                        output = output,
                                        ns = ns)
+
                 } else {
-                        # removeUI(selector = paste0("#", ns("open_calibration")))
                         if (experiment$raw$type == "DNA Quantification") {
                                 experiment$calculated <- calc_values(experiment$raw$data,
                                                                      absorbance,
@@ -114,7 +115,8 @@ tecan_server <- function(input, output, session, gtoken) {
                         }
                         
                         output$summary <- renderTable({
-                                if (!data_tagged_and_saved() && experiment$raw$type == "DNA Quantification") return()
+                                if (!data_tagged_and_saved() && experiment$raw$type == "DNA Quantification")
+                                        return()
                                 if (experiment$raw$type == "DNA Quantification") {
                                         experiment$calculated$Results
                                 } else {
@@ -123,8 +125,8 @@ tecan_server <- function(input, output, session, gtoken) {
                         })
                         
                         output$hist <- renderPlot({
-                                if (!data_tagged_and_saved() && experiment$raw$type == "DNA Quantification") return()
-                                
+                                if (!data_tagged_and_saved() && experiment$raw$type == "DNA Quantification")
+                                        return()
                                 is_DNAquant <- experiment$raw$type == "DNA Quantification"
                                 
                                 if (is_DNAquant) {
