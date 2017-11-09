@@ -1,13 +1,18 @@
 tecan_server <- function(input, output, session, gtoken) {
-        library(shiny)
+        library(shiny); library(stringr); library(purrr)
         source("tecan/tecan_extract.R")
-        #Set Drive directory
         source("tecan/tecan_values.R")
         source("drive_helpers.R")
-        source("tecan/tecan_db_server.R")
+        #source("tecan/tecan_db_server.R")
         source("helpers/delete_file_button_module.R")
         source("helpers/mongo_helpers.R")
         source("tecan/tecan_nadh.R")
+        source("registry/registry_helpers.R")
+        source("registry/registry_values.R")
+        
+        #TODO: Try Promises on this
+        registry <- registry_key_names(registry_url, registry_sheets)
+        
         #Only initiate mongo connexion when needed
         if (!exists("db")) {
                 source("mongo/db_values.R")
@@ -34,8 +39,7 @@ tecan_server <- function(input, output, session, gtoken) {
                 updateSelectInput(session, "file",
                                   choices = choices,
                                   selected = ifelse(input$refresh == 0,
-                                                    choices[10],
-                                                    #head(choices,1),
+                                                    head(choices,1),
                                                     input$file)
                 )
                 
@@ -54,15 +58,6 @@ tecan_server <- function(input, output, session, gtoken) {
         #A switch to keep track of db inserts
         data_tagged_and_saved <- reactiveVal(value = FALSE)
 
-        callModule(tecan_db_server,
-                   id = "Tecan_db",
-                   tecan_file = tecan_file,
-                   gtoken = gtoken,
-                   data_switch = data_tagged_and_saved
-        )
-        
-       #TODO: MAKE module for the whole H202 thing, then back port the tecan_db DNA detection into it
-        
         callModule(module = delete_exp_files,
                    id = "delete_button",
                    tecan_file = tecan_file,
@@ -87,9 +82,138 @@ tecan_server <- function(input, output, session, gtoken) {
                 }
         }, priority = 1)
         
+        #Get db records attached to new file
+        file_record <- eventReactive(tecan_file(), {
+                shiny::validate(need(!is.null(tecan_file()$type),
+                                     message = FALSE))
+                #Display db ui only if File is not kinetic...
+                if (tecan_file()$type %in% tecan_protocols_with_db) {
+                        return(mongo_file_entry(db, tecan_file()$file))
+                } else {
+                        return(list("entry_exists" = FALSE))
+                }
+        })
+        
+        #Container for samples
+        samples <- reactiveVal(value = NULL)
+        #To prevent updating empty string notes...
+        note_had_characters <- reactiveVal(FALSE)
+        
+        observeEvent(tecan_file(), {
+                shiny::validate(need(!is.null(registry) &&
+                                             !is.null(tecan_file()$samples) &&
+                                             !is.null(tecan_file()$type),
+                                     message = "Something wrong with registry or tecan file"))
+                
+                #removeUI(selector = str_interp("#${tecan_file()file}${ns('note_widget')}"))
+                #removeUI(selector = str_interp("#${ns('note')}"))
+                removeUI(selector = str_interp("#${ns('note_widget')}"))
+                
+                
+                #Prepare the samples tibble
+                if (file_record()$entry_exists) {
+                        samples(file_record()$entry$samples[[1]] %>% as_tibble())
+                        
+                } else {
+                        if (tecan_file()$type == tecan_protocols_with_db[1]) {
+                                tecan_smpls <- tecan_file()$samples[-1] 
+                        }
+                        else if (tecan_file()$type == tecan_protocols_with_db[2]) {
+                                # Select non-calibration samples
+                                max_idx <- tecan_file()$measures$Value %>% which.max()
+                                measured <- (max_idx + 1):length(tecan_file()$measures$Value)
+                                tecan_smpls <- tecan_file()$samples[measured]
+                        } else return()
+                        
+                        # Initiate the 'samples' reactiveVal with those samples
+                        samples(tecan_smpls %>%
+                                         as_tibble() %>%
+                                         mutate(Key = "") %>%
+                                         rename(Sample = value))
+                        
+                        # Todo : create the db entry for the file
+                        db_create_entry(db, tecan_file, samples)
+                } 
+                
+                #Display the note text input
+                insertUI(selector =  "#Tecan-widgets_bar",
+                         where = "beforeBegin",
+                         ui =  tags$div(id = ns("note_widget"),
+                                        textInput(inputId = ns("note"),
+                                                  label = "Optional note",
+                                                  value = file_record()$entry$note)
+                         )
+                )
+                
+                control_samples <- reactiveValues()
+                
+                # for each sample, display the widget
+                walk2(samples()$Sample,samples()$Key, ~ {
+                        
+                        insertUI(selector = "#Tecan-widgets_bar",
+                                 where = "beforeEnd",
+                                 ui = sample_widget_ui(id = ns(.x), .x, .y, tecan_file, registry)
+                        )
+                        
+                        control_samples[[.x]] <- callModule(module = sample_widget,
+                                                id = .x,
+                                                sample_well = .x,
+                                                sample_key = .y,
+                                                samples = samples,
+                                                tecan_file,
+                                                db,
+                                                registry)
+                })
+                
+                #Slowed down text input updates
+                
+                input_note <- debounce(reactive({input$note}), 1500)
+
+                #Save note when changed
+                observeEvent(input_note(), {
+                        if (file_record()$entry_exists) {
+                                #Don't update db when not value changed yet
+                                if (input_note() == file_record()$entry$note) return()
+                        } else {
+                                #Don't update db with empty char except when it's a 'delete' note act
+                                if (input_note() == "" && !note_had_characters()) {
+                                        return()}
+                        }
+                        if (str_length(input_note()) > 0) note_had_characters(TRUE)
+                        else note_had_characters(FALSE)
+                        str1 <- str_interp('{"file" : "${tecan_file()$file}"}')
+                        str2 <- str_interp('{"$set" : {"note" : "${input_note()}"}}')
+                        note_upd <- db$update(str1, str2)
+                        if (note_upd) {
+                                showNotification(ui = str_interp("Updated note with '${input_note()}'"),
+                                                 duration = 3,
+                                                 type = "message")
+                        }
+                }, ignoreInit = TRUE)
+                
+                key_inputs <- reactive({
+                        map_chr(samples()$Sample, ~ {
+                                if (is.null(control_samples[[.x]]) ||
+                                    is.null(control_samples[[.x]]())
+                                    ) return("")
+                                else return(control_samples[[.x]]())
+                                })
+                })
+                
+                observeEvent(key_inputs(), {
+                        if (any(key_inputs() == "")) data_tagged_and_saved(FALSE)
+                        else data_tagged_and_saved(TRUE)
+                })
+                
+        }, ignoreInit = TRUE)
+        
+
+        
+        
+        
         # Tell user if it's a 260 or 600nm
         output$type <- eventReactive(experiment$raw, {
-                        experiment$raw$type
+                experiment$raw$type
         })
         outputOptions(output, "type", suspendWhenHidden = FALSE)
         
@@ -101,12 +225,12 @@ tecan_server <- function(input, output, session, gtoken) {
                 path <- as.double(input$path)
                 
                 if (experiment$raw$type == "NADH Detection") {
-                                nadh_detection(nadh = experiment$raw$data$Batch_1$Measures,
+                        nadh_detection(nadh = experiment$raw$data$Batch_1$Measures,
                                        cal_conc = calibration_concentrations,
                                        input = input,
                                        output = output,
                                        ns = ns)
-
+                        
                 } else {
                         if (experiment$raw$type == "DNA Quantification") {
                                 experiment$calculated <- calc_values(experiment$raw$data,

@@ -1,3 +1,5 @@
+source("tecan/tecan_values.R")
+
 pop_calibration_values <- function(calibration, required_msg = NULL, ns) {
         
         showModal(
@@ -93,66 +95,77 @@ nadh_detection <- function(nadh, cal_conc, input, output, ns) {
         #return(measured_samples())
 }
 
-sample_widget_ui <- function(id, sample_well, sample_key) {
+sample_widget_ui <- function(id, sample_well, sample_key, tecan_file, registry) {
         ns <- NS(id)
-        column(width = 2,
-               tags$div(id = ns("widget"),
-                 textInput(inputId = ns("well_key"),
-                           label = sample_well,
-                           value = sample_key)
-                 )
-        )
+        
+        if (tecan_file()$type == tecan_protocols_with_db[1]) {
+                tags$span(id = ns("widget"),
+                         column(width = 2,
+                                selectizeInput(
+                                        inputId = ns("well_key"),
+                                        label = str_interp("Sample ${sample_well}"),
+                                        choices = registry$KEY  %>%
+                                                prepend(c("", "Plasmid")),
+                                        selected = sample_key,
+                                        multiple = FALSE)
+                                )
+                         )
+        }
+        else {
+                tags$span(id = ns("widget"),
+                         column(width = 2,
+                                textInput(inputId = ns("well_key"),
+                                          label = sample_well,
+                                          value = sample_key)
+                         )
+                )        
+        }
+        
 }
 
-sample_widget <- function(input, output, session, sample_well, sample_key, samples, tecan_file, db) {
+sample_widget <- function(input, output, session, sample_well, sample_key, samples, tecan_file, db, registry) {
         ns <- session$ns
         
         # Slow text input value update
         reactive_key <- reactive({input$well_key})
-        input_key <- debounce(reactive_key, 1500)
+        delay <- ifelse(tecan_file()$type == tecan_protocols_with_db[2], 1500, 0)
+        input_key <- debounce(reactive_key, delay)
         
         observeEvent(input_key(), {
-                if (is.null(input_key())) return()
-                if (input_key() == sample_key) return()
-                #Todo: currently the whole 'samples' updating is unused and probably un-needed
-                #the idea was taken from the work on gel, but here the number of wells is fixed...
-                samples(
-                        samples() %>%
-                                filter(Sample != sample_well) %>%
-                                bind_rows(as_tibble(list(Sample = sample_well, Key = input_key())))
-                )
+                if (is.null(input_key()) || input_key() == "") return()
                 
-                str1 <- str_interp('{ "file" : "${tecan_file()$file}", "samples.Sample" : "${sample_well}"}')
-                                   
-                str2 <- str_interp('{"$set" : {"samples.$.Key" : "${input_key()}"}}')
-                upd_check <- db$update(str1, str2)
-                if (upd_check) {
-                showNotification(ui = str_interp("Updated ${sample_well} with ${input_key()}"),
-                                 duration = 3,
-                                 type = "message")
+                if (input_key() != sample_key) {
+                        #Update db entry
+                        str1 <- str_interp('{ "file" : "${tecan_file()$file}", "samples.Sample" : "${sample_well}"}')
+                        
+                        str2 <- str_interp('{"$set" : {"samples.$.Key" : "${input_key()}"}}')
+                        upd_check <- db$update(str1, str2)
+                        if (upd_check) {
+                                showNotification(ui = str_interp("Updated ${sample_well} with ${input_key()}"),
+                                                 duration = 3,
+                                                 type = "message")
+                        }
                 }
-
+                
+                key <- registry %>%
+                        filter(KEY == input_key()) %>% pull(var = 2)
+                #Remove potential previous part name
+                removeUI(selector = paste0("#", ns("js_id")))
+                #Display part name
+                insertUI(selector = paste0("#", ns("well_key")),
+                                 where = "afterEnd",
+                                 ui = tags$h6(paste0(key, "  "),
+                                              id = ns("js_id"))
+                        )
         })
         
         observeEvent(tecan_file()$file, {
                 removeUI(selector = paste0("#", ns("widget")))
+                removeUI(selector = paste0("#", ns("js_id")))
         }, ignoreInit = TRUE, priority = 1)
         
-}
-
-display_sample_widget <- function(sample_well, sample_key, samples, tecan_file, ns, db) {
-        insertUI(selector = "#Tecan-widgets_bar",
-                  where = "beforeEnd",
-                  ui = sample_widget_ui(id = ns(sample_well), sample_well, sample_key)
-                  )
-                
-        callModule(module = sample_widget,
-                   id = sample_well,
-                   sample_well = sample_well,
-                   sample_key = sample_key,
-                   samples = samples,
-                   tecan_file,
-                   db)
+        return(input_key)
+        
 }
 
 db_create_entry <- function(db, tecan_file, samples) {
