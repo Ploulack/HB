@@ -105,8 +105,6 @@ tecan_server <- function(input, output, session, gtoken) {
                                              !is.null(tecan_file()$type),
                                      message = "Something wrong with registry or tecan file"))
                 
-                #removeUI(selector = str_interp("#${tecan_file()file}${ns('note_widget')}"))
-                #removeUI(selector = str_interp("#${ns('note')}"))
                 removeUI(selector = str_interp("#${ns('note_widget')}"))
                 
                 

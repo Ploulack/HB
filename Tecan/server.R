@@ -11,19 +11,6 @@ function(session, input, output) {
         
         source("auth/google_button_server.R")
         
-        # #Opening the session post-auth on the tab that initiated it
-        # observeEvent(session$clientData$url_search, {
-        #         shiny::validate(need(
-        #                 !is.null(google_auth_from()), message = FALSE
-        #         ))
-        #         query <- parseQueryString(session$clientData$url_search)
-        #         if (length(query$code) > 0) {
-        #                 updateTabsetPanel(session,
-        #                         inputId = "tab",
-        #                         selected = google_auth_from())
-        #         }
-        # })
-        
         # Display Google Auth button if no Token
         token_test <- reactive({
                 pars <- parseQueryString(session$clientData$url_search)
@@ -59,9 +46,16 @@ function(session, input, output) {
                 callModule(gel_server, "Gel", gtoken = google_token())
         })
 
+        #HAMILTON
+        observeEvent(input$hami_go, {
+                shiny::validate(need((input$hami_go > 0), message = FALSE))
+                source("hamilton/hamilton.R")
+                callModule(hami_server, "Hami")
+        })
+        
         shiny::onStop(
                 fun = function() {
-                        if(file.exists("hblab_token.rds")) {file.remove("hblab_token.rds")}
+                        if (file.exists("hblab_token.rds")) {file.remove("hblab_token.rds")}
                 }
         )
         observeEvent(c(input$tecan_go, input$gel_go), {

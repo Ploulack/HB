@@ -120,7 +120,6 @@ sample_widget_ui <- function(id, sample_well, sample_key, tecan_file, registry) 
                          )
                 )        
         }
-        
 }
 
 sample_widget <- function(input, output, session, sample_well, sample_key, samples, tecan_file, db, registry) {

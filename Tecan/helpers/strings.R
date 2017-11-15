@@ -5,36 +5,30 @@ first_unused <- function(used_labels = NULL) {
         
         if (rest == 0) {
                 res <- NULL
-                for (i in 1:(quotient+1)) {
+                for (i in 1:(quotient + 1)) {
                         res <- paste0(res,"A")
                 }
                 res}
         else {
                 for (i in 0:quotient) {
-                        index <- used_labels %>% str_length() == i+1 
+                        index <- used_labels %>% str_length() == i + 1 
                         if (sum(index) != 26)
                                 {
                                 l <- used_labels[index] %>%
-                                        str_sub(start = i+1, end= i+1)
-                                print(l)
+                                        str_sub(start = i + 1, end = i + 1)
                                 return(LETTERS[which.min(LETTERS %in% l)])
                                 }
                 }
                 l <- used_labels %>%
-                        str_sub(start = quotient+1, end= quotient+1) %>%
+                        str_sub(start = quotient + 1, end = quotient + 1) %>%
                         str_subset("[A-Z]")
-                print(l)
                 LETTERS[which.min(LETTERS %in% l)]
         }
 }
 
-# 
-# test <- c(LETTERS,"AA","AD", "AF", "AG")
-# test2 <- LETTERS
-# test3 <- LETTERS[-3]
-# test4 <- test[-1]
-# first_unused(test)
-# first_unused(test2)
-# first_unused(test3)
-# first_unused(test4)
-# 
+generate_96_pos <- function() {
+        map(1:12, function(x) {
+                map_chr(LETTERS[1:8], ~ paste0(.x,x)) 
+        }) %>%
+                unlist()
+}
