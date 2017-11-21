@@ -5,7 +5,6 @@ part_widget_ui <- function(id, part_label, part_key, args_list, registry) {
         #part_key = sample_key
         #args_list = tecan_file() actually tecan_file, so changes will be needed,
         ns <- NS(id)
-        
         if (args_list$type %in% c(tecan_protocols_with_db[1],"hamilton_PCR")) { 
                 #This is actually the general case, the other one is just for H2O2
                 tags$div(id = ns("widget"),
@@ -31,7 +30,7 @@ part_widget_ui <- function(id, part_label, part_key, args_list, registry) {
         }
 }
 
-part_widget <- function(input, output, session, part_label, part_key, args_list, db = NULL, registry) {
+part_widget <- function(input, output, session, parts, part_label, part_key, args_list, db = NULL, registry) {
         ns <- session$ns
         
         # Slow text input value update

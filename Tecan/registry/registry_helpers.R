@@ -37,7 +37,8 @@ registry_key_names <- function(registry_url, registry_sheets, file = registry_fi
                 registry_sheets,
                 ~ read_xlsx(path = file,
                             sheet = .x,
-                            range = cell_cols(1:3)
+                            range = cell_cols(c(1:3,5:6))
                 )
-        )
+        ) %>%
+                mutate(Length = as.integer(Length))
 }

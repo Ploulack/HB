@@ -4,7 +4,7 @@ library(lubridate)
 library(googlesheets)
 library(stringr)
 
-# tabs <- c("Tecan","Order Decision Tool","MS Analysis", "Gel")
+
 token_name <- "hblab_token.rds"
 
 function(session, input, output) {
@@ -56,9 +56,7 @@ function(session, input, output) {
         shiny::onStop(
                 fun = function() {
                         if (file.exists("hblab_token.rds")) {file.remove("hblab_token.rds")}
+                        file.remove(list.files("temp", full.names = TRUE))
                 }
         )
-        observeEvent(c(input$tecan_go, input$gel_go), {
-                cat("tecan go", input$tecan_go, sep = "\n", "gel go", input$gel_go)
-        })
 }

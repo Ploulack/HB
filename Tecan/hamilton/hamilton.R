@@ -11,13 +11,14 @@ hami_ui <- function(id) {
 
 #paste0("output['",ns("type"),"'] == 'DNA Quantification'" )
 
-hami_server <- function(input, output, session) {
+hami_server <- function(input, output, session, gtoken) {
         library(shiny);library(tidyverse);library(stringr);library(purrr)
         source("helpers/part_widget.R")
         source("registry/registry_helpers.R")
         source("registry/registry_values.R")
         source("helpers/strings.R")
         source("hamilton/part_row.R")
+        source("hamilton/generate_files.R")
         
         ns <- session$ns
         args_list <- list(type = "hamilton_PCR")
@@ -27,20 +28,20 @@ hami_server <- function(input, output, session) {
                 registry <- registry_key_names(registry_url, registry_sheets)
         }
         
-        parts <- reactiveValues(letters = character(0))
-        output$has_parts <- reactive({
-                test <- length(parts$letters) > 0 &&
-                        all(
-                                map_lgl(paste0("Part_", parts$letters,"-",parts$letters,"-well_key"),
-                                        ~ !is.null(input[[.x]]) && (input[[.x]] != ""))
-                                )
-               #if (test) browser()
-                return(test)
-        })
-        outputOptions(output, "has_parts", suspendWhenHidden = FALSE)
+        parts <- reactiveVal(tibble(letters = character(),
+                                    key = character(),
+                                    n_pcr = integer(),
+                                    l_primer = character(),
+                                    r_primer = character()))
         
         observeEvent(input$add_part,{
-                current_label <- first_unused(parts$letters)
+                current_label <- first_unused(parts()$letters)
+                parts(parts() %>% bind_rows(tibble(letters = current_label,
+                                                   key = "",
+                                                   n_pcr = as.integer(0),
+                                                   l_primer = "",
+                                                   r_primer = "")))
+                
                 insertUI(selector = paste0("#",ns("add_part")),
                          where = "beforeBegin",
                          ui = part_row_ui(ns(paste0("Part_", current_label)),
@@ -57,8 +58,26 @@ hami_server <- function(input, output, session) {
                            part_key = "",
                            args_list,
                            registry)
-                
-                parts$letters <-  append(parts$letters, current_label)
-                                        
+        })
+        
+        output$has_parts <- reactive({
+                length(parts()$letters) > 0 && all(
+                        map_lgl(paste0("Part_", parts()$letters,"-",parts()$letters,"-well_key"),
+                                ~ !is.null(input[[.x]]) && (input[[.x]] != "")))
+        })
+        outputOptions(output, "has_parts", suspendWhenHidden = FALSE)
+        
+        observeEvent(input$create_files, {
+                generate_files(parts)
+                link <- generate_operator_sheets(parts)
+                print(link)
+                showModal(modalDialog(
+                        title = "Open Operator's Instructions",
+                        tags$a(class = "btn btn-default",
+                               href = link,
+                               "Open instructions",
+                               target = "_blank"),
+                        easyClose = TRUE
+                ))
         })
 }

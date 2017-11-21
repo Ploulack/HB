@@ -7,7 +7,7 @@ google_button_server <- function(input, output, session) {
         
         hblab_uri <- reactive({
                 res <- shiny_get_url(session)
-                cat("session url: ", res)
+                #cat("session url: ", res)
                 return(res)
         })
         
@@ -53,6 +53,9 @@ google_button_server <- function(input, output, session) {
                 ))
                 saveRDS(access_token(), file = "hblab_token.rds")
                 drive_auth(oauth_token = "hblab_token.rds",cache = FALSE, reset = FALSE)
+                gs_auth(token = access_token(),
+                        key = hblab_id,
+                        secret = hblab_secret, cache = TRUE)
         })
         
         return(access_token)

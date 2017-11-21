@@ -86,3 +86,7 @@ Tecan/tecan_values.R
 Tecan/tests sur la récup du registre.R
 
 Tecan/mongo/db_values.R
+
+Tecan/hamilton/hamilton_values.R
+
+*.csv
