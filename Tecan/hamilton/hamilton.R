@@ -68,9 +68,16 @@ hami_server <- function(input, output, session, gtoken) {
         outputOptions(output, "has_parts", suspendWhenHidden = FALSE)
         
         observeEvent(input$create_files, {
-                generate_files(parts)
-                link <- generate_operator_sheets(parts)
-                print(link)
+                # Create a Progress object
+                progress <- shiny::Progress$new()
+                # Make sure it closes when we exit this reactive, even if there's an error
+                
+                progress$set(message = "Generating files...", value = 0)
+                
+                generate_files(parts, progress)
+                
+                link <- generate_operator_sheets(parts, progress)
+                progress$close()
                 showModal(modalDialog(
                         title = "Open Operator's Instructions",
                         tags$a(class = "btn btn-default",
