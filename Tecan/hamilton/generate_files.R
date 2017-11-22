@@ -38,7 +38,7 @@ generate_files <- function(parts, progress) {
 
 generate_operator_sheets <- function(parts, progress) {
         user_name <- drive_user()$displayName
-        pcr_date <- Sys.time()
+        pcr_date <- Sys.time() %>% as.POSIXlt(tz = "EST")
         first_parts <- str_c(parts()$key[1:min(3, nrow(parts()))], collapse = " ")
         file_name <- paste(user_name, pcr_date, first_parts, sep = "  |  ")
         desc_string <- str_interp("PCR Instruction by ${user_name} on ${pcr_date} with starting parts ${first_parts}")
