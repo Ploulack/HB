@@ -13,7 +13,7 @@ part_widget_ui <- function(id, part_label, part_key, args_list, registry) {
                                          inputId = ns("well_key"),
                                          label = str_interp("Sample ${part_label}"),
                                          choices = registry$KEY  %>%
-                                                 prepend(c("", "Plasmid")),
+                                                 prepend(c("")),
                                          selected = part_key,
                                          multiple = FALSE)
                           )

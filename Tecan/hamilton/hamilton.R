@@ -23,25 +23,34 @@ hami_server <- function(input, output, session, gtoken) {
         ns <- session$ns
         args_list <- list(type = "hamilton_PCR")
         
-        
+        # Check if registry is loaded
         if (!exists("registry")) {
                 registry <- registry_key_names(registry_url, registry_sheets)
         }
         
-        parts <- reactiveVal(tibble(letters = character(),
+        # Initialize the parts storage reactive value
+        parts <- reactiveVal(tibble(letter = character(),
                                     key = character(),
                                     n_pcr = integer(),
                                     l_primer = character(),
-                                    r_primer = character()))
+                                    r_primer = character(),
+                                    #For a potential later point when we combine registry plates and
+                                    #operator set plates for templates and primers
+                                    template_position_type = character(),
+                                    template_position = character(),
+                                    l_primer_position = character()))
         
+        # When user adds a part
         observeEvent(input$add_part,{
-                current_label <- first_unused(parts()$letters)
-                parts(parts() %>% bind_rows(tibble(letters = current_label,
-                                                   key = "",
-                                                   n_pcr = as.integer(0),
-                                                   l_primer = "",
-                                                   r_primer = "")))
-                
+                # Set identifying label as first unused letters A-Z, AA, AZ, etc...
+                current_label <- first_unused(parts()$letter)
+                # Add new row to parts for the new letter
+                parts(parts() %>%
+                              add_row(letter = current_label,
+                                      template_position_type = "operator_plate",
+                                      template_position = generate_96_pos()[nrow(parts()) + 1],
+                                      l_primer_position = template_position
+                              ))
                 insertUI(selector = paste0("#",ns("add_part")),
                          where = "beforeBegin",
                          ui = part_row_ui(ns(paste0("Part_", current_label)),
@@ -59,21 +68,24 @@ hami_server <- function(input, output, session, gtoken) {
                            args_list,
                            registry)
         })
-        
+        #Generate a UI conditional variable used to switch the generate files button on/off
         output$has_parts <- reactive({
-                length(parts()$letters) > 0 && all(
-                        map_lgl(paste0("Part_", parts()$letters,"-",parts()$letters,"-well_key"),
+                length(parts()$letter) > 0 && all(
+                        map_lgl(paste0("Part_", parts()$letter,"-",parts()$letter,"-well_key"),
                                 ~ !is.null(input[[.x]]) && (input[[.x]] != "")))
         })
         outputOptions(output, "has_parts", suspendWhenHidden = FALSE)
-        
+        # user presses the generate button, and this logic generates the various files
         observeEvent(input$create_files, {
+                # Generate the right_primers position column
+                n <- nrow(parts())
+                parts(parts() %>%
+                              add_column(r_primer_position = generate_96_pos()[n + 1:n])
+                )
                 # Create a Progress object
                 progress <- shiny::Progress$new()
-                # Make sure it closes when we exit this reactive, even if there's an error
-                
                 progress$set(message = "Generating files...", value = 0)
-                
+                # Create the csv files
                 generate_files(parts, progress)
                 
                 link <- generate_operator_sheets(parts, progress)

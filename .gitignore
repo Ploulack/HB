@@ -90,3 +90,4 @@ Tecan/mongo/db_values.R
 Tecan/hamilton/hamilton_values.R
 
 *.csv
+.Rproj.user

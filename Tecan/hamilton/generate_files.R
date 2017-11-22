@@ -3,17 +3,24 @@ source("helpers/plates_helpers.R")
 
 generate_var_files <- function(parts) {
         if (parts()$key %>% map_lgl(~ is.null(.x) || .x == "") %>% any()) return()
-        #csv with part key || nb of pcr for that part
-        paths <- list(parts = "temp/pcr_parts.csv",
-                      counts = "temp/pcr_counts.csv") %>% unlist()
         
+        paths <- "temp/" %>% str_c(pcr_csv_files) %>% set_names(names(pcr_csv_files))
+        #PARTS
+        #TODO: add position to the generated positions
         write.csv(parts() %>%
-                          select(key, n_pcr),
+                          select(key, n_pcr, template_position) %>%
+                          add_column(labware = pcr_labwares["parts"]),
                   file = paths["parts"], quote = TRUE, eol = "\r\n", row.names = FALSE)
-        
+        #COUNTS
         write.csv(tibble(total_pcr = sum(parts()$n_pcr),
                          n_parts = nrow(parts())),
                   file = paths["counts"], quote = TRUE, eol = "\r\n", row.names = FALSE)
+        
+        #PRIMERS
+        write.csv(tibble(primer_key = c(parts()$l_primer, parts()$r_primer),
+                         primer_position = c(parts()$l_primer_position, parts()$r_primer_position),
+                         labware = pcr_labwares["primers"]),
+                  file = paths["primers"], quote = TRUE, eol = "\r\n", row.names = FALSE)
         return(paths)
 }
 

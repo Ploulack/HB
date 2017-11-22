@@ -45,23 +45,12 @@ part_row <- function(input, output, session, parts, part_label, part_key, args_l
         
         observeEvent(c(input_key$value(), input$pcr_count), {
                 if (any(is.null(c(input_key$value(), input$pcr_count)))) return()
-                if (nrow(parts()) == 1) {
-                        parts(
-                                parts() %>% mutate(
-                                        key = input_key$value(),
-                                        n_pcr = as.integer(input$pcr_count),
-                                        l_primer = part_info()$L_Primer,
-                                        r_primer = part_info()$R_Primer
-                                )
-                        )
-                } else {
-                        parts(parts() %>% mutate(
-                                key = if_else(letters == part_label, input_key$value(), parts()$key),
-                                n_pcr = if_else(letters == part_label, input$pcr_count, parts()$n_pcr),
-                                l_primer = if_else(letters == part_label, part_info()$L_Primer, parts()$l_primer),
-                                r_primer = if_else(letters == part_label, part_info()$R_Primer, parts()$r_primer)) 
-                        )
-                }
+                parts(parts() %>% mutate(
+                        key = if_else(letter == part_label, input_key$value(), parts()$key),
+                        n_pcr = if_else(letter == part_label, input$pcr_count, parts()$n_pcr),
+                        l_primer = if_else(letter == part_label, part_info()$L_Primer, parts()$l_primer),
+                        r_primer = if_else(letter == part_label, part_info()$R_Primer, parts()$r_primer)) 
+                )
         })
         
         output$info <- renderTable({
@@ -70,8 +59,9 @@ part_row <- function(input, output, session, parts, part_label, part_key, args_l
         
         observeEvent(input$delete_part, {
                 removeUI(selector = paste0("#", ns("part_row")))
-                # isolate(parts$letters <- parts$letters %>% 
-                #                 keep(~ .x != part_label))
-                isolate(parts(parts() %>% filter(letters != part_label)))
+                isolate(
+                        parts(
+                                parts() %>% filter(letter != part_label))
+                        )
         })
 }
