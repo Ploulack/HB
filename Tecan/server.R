@@ -10,7 +10,6 @@ token_name <- "hblab_token.rds"
 function(session, input, output) {
         
         source("auth/google_button_server.R")
-        
         # Display Google Auth button if no Token
         token_test <- reactive({
                 pars <- parseQueryString(session$clientData$url_search)
@@ -21,9 +20,6 @@ function(session, input, output) {
         
         #Only start the Google Auth button module if no token
         google_token <- callModule(google_button_server, "Auth")
-   
-        
-        
         
         #DECISION TOOL
         observeEvent(input$decision_go, {

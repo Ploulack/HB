@@ -1,11 +1,20 @@
+source("hamilton/hamilton_values.R")
+
 hami_ui <- function(id) {
         ns <- NS(id)
         fluidPage(
-                actionButton(inputId = ns("add_part"),
-                             label = "Add Part"),
-                conditionalPanel(condition = paste0("output['", ns("has_parts"), "'] == true"),
-                                 actionButton(inputId = ns("create_files"),
-                                              label = "Generate"))
+                sidebarPanel(
+                        selectInput(inputId = ns("protocol_type"),
+                                    label = "Select Hamilton Protocol",
+                                    choices = protocols)
+                ),
+                mainPanel(
+                        actionButton(inputId = ns("add_part"),
+                                     label = "Add Element"),
+                        conditionalPanel(condition = paste0("output['", ns("has_parts"), "'] == true"),
+                                         actionButton(inputId = ns("create_files"),
+                                                      label = "Generate"))        
+                )
         )
 }
 
@@ -15,7 +24,6 @@ hami_server <- function(input, output, session, gtoken) {
         library(shiny);library(tidyverse);library(stringr);library(purrr)
         source("helpers/part_widget.R")
         source("registry/registry_helpers.R")
-        source("registry/registry_values.R")
         source("helpers/strings.R")
         source("hamilton/part_row.R")
         source("hamilton/generate_files.R")
@@ -99,4 +107,13 @@ hami_server <- function(input, output, session, gtoken) {
                         easyClose = TRUE
                 ))
         })
+        
+        observeEvent(input$protocol_type, {
+                #IN case of PCR, remove all 'parts rows'
+                walk(parts()$letter, ~ {
+                        selector_str <- paste0("#", ns(paste0("Part_", .x,"-part_row")))
+                        #selector_str <- paste0("#", ns(paste0("Part_", .x)),"-part_row")
+                        removeUI(selector = selector_str)}
+                     )
+        }, ignoreInit = TRUE)
 }
