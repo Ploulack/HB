@@ -29,6 +29,7 @@ part_row <- function(input, output, session, parts, part_label, part_key, args_l
                                 args_list = args_list, 
                                 registry = registry)
         
+        # A reactive to access the KEY matched registry spreadsheet infos used elsewhere
         part_info <- reactive({
                 if (is.null(input_key$value())) return()
                 if (input_key$value() == "")
@@ -43,6 +44,7 @@ part_row <- function(input, output, session, parts, part_label, part_key, args_l
                                 select(2, Length, L_Primer, R_Primer))
         })
         
+        #Update a part value each time it's key or nb of pcr is changed
         observeEvent(c(input_key$value(), input$pcr_count), {
                 if (any(is.null(c(input_key$value(), input$pcr_count)))) return()
                 parts(parts() %>% mutate(
@@ -53,10 +55,12 @@ part_row <- function(input, output, session, parts, part_label, part_key, args_l
                 )
         })
         
+        #Render the info of a selected key's part, a chance for the user to adjust his selection
         output$info <- renderTable({
                 part_info()
         })
         
+        #Delete a part's UI and parts() row
         observeEvent(input$delete_part, {
                 removeUI(selector = paste0("#", ns("part_row")))
                 isolate(

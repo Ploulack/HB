@@ -31,3 +31,18 @@ generate_plates <- function(parts) {
                      build_plate()
         )
 }
+
+generate_96_pos <- function() {
+        map(1:12, function(x) {
+                map_chr(LETTERS[1:8], ~ paste0(.x,x)) 
+        }) %>%
+                unlist()
+}
+
+#Matches A-Z, AA-AZ, etc.. to 96 plates positions
+letter_to_96_pos <- function(letter) {
+        l <- str_length(letter)
+        pos <- which(LETTERS == str_sub(letter, l, l)) + 26 * (l - 1)
+        generate_96_pos()[pos]
+        
+}

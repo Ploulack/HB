@@ -13,11 +13,11 @@ first_unused <- function(used_labels = NULL) {
                 for (i in 0:quotient) {
                         index <- used_labels %>% str_length() == i + 1 
                         if (sum(index) != 26)
-                                {
+                        {
                                 l <- used_labels[index] %>%
                                         str_sub(start = i + 1, end = i + 1)
                                 return(LETTERS[which.min(LETTERS %in% l)])
-                                }
+                        }
                 }
                 l <- used_labels %>%
                         str_sub(start = quotient + 1, end = quotient + 1) %>%
@@ -26,9 +26,3 @@ first_unused <- function(used_labels = NULL) {
         }
 }
 
-generate_96_pos <- function() {
-        map(1:12, function(x) {
-                map_chr(LETTERS[1:8], ~ paste0(.x,x)) 
-        }) %>%
-                unlist()
-}
