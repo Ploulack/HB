@@ -89,7 +89,7 @@ calc_values <- function(list, molar_absorbance, path_length) {
         
         results <- map(list_delta, pull, var = Delta) %>%
                 as_tibble() %>%
-                mutate(Sample =filter(full_tbl, Wavelength == 260) %>%
+                mutate(Sample = filter(full_tbl, Wavelength == 260) %>%
                                pull(Sample),
                        Ratio = Batch_1 / Batch_2,
                        Concentration = filter(full_tbl, Wavelength == 260) %>%
@@ -98,3 +98,18 @@ calc_values <- function(list, molar_absorbance, path_length) {
         
         list("Table" = full_tbl, "Results" = results)
 }
+
+#To extract custom field from tecan file:
+#test <- tecan %>%
+# xml_find_all("Script") %>%
+#         xml_contents() %>%
+#         xml_children() %>%
+#         xml_children() %>%
+#         pluck(1) %>%
+#         xml_children() %>%
+#         pluck(1) %>%
+#         xml_contents() %>%
+#         pluck(6) %>%
+#         xml_attrs()
+# 
+# test["description"]

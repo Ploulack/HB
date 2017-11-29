@@ -27,6 +27,7 @@ display_tab <- function(panel_name, btn_label, module_ui_name) {
                  )
         )
 }
+
 tabsetPanel(id = "tab",
         conditionalPanel(
                 condition = "output.token_exists == false",
