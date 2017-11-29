@@ -97,10 +97,9 @@ hami_server <- function(input, output, session, gtoken) {
                 all_96 <- generate_96_pos()
                 parts(parts() %>%
                               add_column(template_position = all_96[1:n],
-                                         l_primer_positin = template_position,
+                                         l_primer_position = template_position,
                                          r_primer_position = all_96[n + 1:n])
                 )
-                browser()
                 # Create a Progress object
                 progress <- shiny::Progress$new()
                 progress$set(message = "Generating files...", value = 0)

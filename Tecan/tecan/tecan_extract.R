@@ -4,12 +4,17 @@ require(stringr)
 source("drive_helpers.R")
 
 tecan_type <- function(xml_file) {
-        type <- xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
+        type_wavelength <- xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
                 xml_attrs() %>%
                 keep(~.x["Name"] %in% c("Wavelength", "Emission Wavelength")) %>%
                 map_chr("Value") %>%
                 purrr::pluck(1)
-        names(tecan_protocols[tecan_protocols == type])
+        
+        if (type_wavelength %in% tecan_protocols) {
+                names(tecan_protocols[tecan_protocols == type_wavelength])
+        } else {
+                str_interp("Unknown Wavelength: ${type_wavelength}")
+        }
 }
 
 
@@ -30,7 +35,6 @@ tecan_extract <- function(input_file, dribble) {
         folder <- "temp/"
         #Todo: find the input_file in the dribble
         tecan <- dl_tecan_xml(dribble %>% filter(id == input_file), folder)
-        
 
         #Get the Data which is in the Elements "Section", 
         

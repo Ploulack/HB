@@ -27,26 +27,26 @@ function(session, input, output) {
                 callModule(decision_server, "decision", google_token())
                 })
         
-        # TEKAN
+        # TECAN
         observeEvent(input$tecan_go, {
                 shiny::validate(need((input$tecan_go > 0), message = FALSE))
                 shiny::validate(need(!is.null(google_token()), message = FALSE))
                 source("tecan/tecan_server.R")
-                callModule(tecan_server, "Tecan",gtoken = readRDS(token_name))
+                callModule(tecan_server, "tecan",gtoken = readRDS(token_name))
         })
         
         # GEL
         observeEvent(input$gel_go, {
                 shiny::validate(need((input$gel_go > 0), message = FALSE))
                 source("gel/gel_server.R")
-                callModule(gel_server, "Gel", gtoken = google_token())
+                callModule(gel_server, "gel", gtoken = google_token())
         })
 
         #HAMILTON
         observeEvent(input$hami_go, {
                 shiny::validate(need((input$hami_go > 0), message = FALSE))
                 source("hamilton/hamilton.R")
-                callModule(hami_server, "Hami")
+                callModule(hami_server, "hami")
         })
         
         shiny::onStop(

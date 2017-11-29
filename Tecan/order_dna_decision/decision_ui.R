@@ -1,5 +1,5 @@
 
-decisionUI <- function(id) {
+decision_ui <- function(id) {
         #Create a function provided the id
         ns <- NS(id)
         

@@ -86,6 +86,7 @@ tecan_server <- function(input, output, session, gtoken) {
         file_record <- eventReactive(tecan_file(), {
                 shiny::validate(need(!is.null(tecan_file()$type),
                                      message = FALSE))
+                
                 #Display db ui only if File is not kinetic...
                 if (tecan_file()$type %in% tecan_protocols_with_db) {
                         return(mongo_file_entry(db, tecan_file()$file))
@@ -204,10 +205,6 @@ tecan_server <- function(input, output, session, gtoken) {
                 })
                 
         }, ignoreInit = TRUE)
-        
-
-        
-        
         
         # Tell user if it's a 260 or 600nm
         output$type <- eventReactive(experiment$raw, {
