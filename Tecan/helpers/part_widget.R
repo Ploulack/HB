@@ -3,7 +3,7 @@ source("tecan/tecan_values.R")
 part_widget_ui <- function(id, part_label, part_key, args_list, registry) {
         #part_label = sample_well
         #part_key = sample_key
-        #args_list = tecan_file() actually tecan_file, so changes will be needed,
+        #args_list = tecan_file actually tecan_file, so changes will be needed,
         ns <- NS(id)
         if (args_list$type %in% c(tecan_protocols_with_db[1],"hamilton_PCR")) { 
                 #This is actually the general case, the other one is just for H2O2
@@ -45,7 +45,7 @@ part_widget <- function(input, output, session, parts, part_label, part_key, arg
                 
                 if (input_key() != sample_key) {
                         #Update db entry
-                        str1 <- str_interp('{ "file" : "${tecan_file()$file}", "samples.Sample" : "${sample_well}"}')
+                        str1 <- str_interp('{ "file" : "${tecan_file$file}", "samples.Sample" : "${sample_well}"}')
                         
                         str2 <- str_interp('{"$set" : {"samples.$.Key" : "${input_key()}"}}')
                         upd_check <- db$update(str1, str2)

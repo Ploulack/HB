@@ -7,7 +7,7 @@ hami_ui <- function(id) {
                         width = 2,
                         selectInput(inputId = ns("protocol_type"),
                                     label = "Select Hamilton Protocol",
-                                    choices = protocols)
+                                    choices = hami_protocols)
                 ),
                 mainPanel(
                         actionButton(inputId = ns("add_part"),

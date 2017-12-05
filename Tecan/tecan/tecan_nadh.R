@@ -97,8 +97,7 @@ nadh_detection <- function(nadh, cal_conc, input, output, ns) {
 
 sample_widget_ui <- function(id, sample_well, sample_key, tecan_file, registry) {
         ns <- NS(id)
-        
-        if (tecan_file()$type == tecan_protocols_with_db[1]) {
+        if (tecan_file$type == tecan_protocols_with_db[1]) {
                 tags$span(id = ns("widget"),
                          column(width = 2,
                                 selectizeInput(
@@ -127,7 +126,7 @@ sample_widget <- function(input, output, session, sample_well, sample_key, sampl
         
         # Slow text input value update
         reactive_key <- reactive({input$well_key})
-        delay <- ifelse(tecan_file()$type == tecan_protocols_with_db[2], 1500, 0)
+        delay <- ifelse(tecan_file$type == tecan_protocols_with_db[2], 1500, 0)
         input_key <- debounce(reactive_key, delay)
         
         observeEvent(input_key(), {
@@ -135,7 +134,7 @@ sample_widget <- function(input, output, session, sample_well, sample_key, sampl
                 
                 if (input_key() != sample_key) {
                         #Update db entry
-                        str1 <- str_interp('{ "file" : "${tecan_file()$file}", "samples.Sample" : "${sample_well}"}')
+                        str1 <- str_interp('{ "file" : "${tecan_file$file}", "samples.Sample" : "${sample_well}"}')
                         
                         str2 <- str_interp('{"$set" : {"samples.$.Key" : "${input_key()}"}}')
                         upd_check <- db$update(str1, str2)
@@ -158,7 +157,7 @@ sample_widget <- function(input, output, session, sample_well, sample_key, sampl
                         )
         })
         
-        observeEvent(tecan_file()$file, {
+        observeEvent(tecan_file$file, {
                 removeUI(selector = paste0("#", ns("widget")))
                 removeUI(selector = paste0("#", ns("js_id")))
         }, ignoreInit = TRUE, priority = 1)
@@ -169,14 +168,14 @@ sample_widget <- function(input, output, session, sample_well, sample_key, sampl
 
 db_create_entry <- function(db, tecan_file, samples) {
         samples_str <- jsonlite::toJSON(samples(), dataframe = 'rows')
-        str1 <- str_interp('{"file" : "${tecan_file()$file}" }')
+        str1 <- str_interp('{"file" : "${tecan_file$file}" }')
         str2 <- str_interp('{"$set": {
-                           "name" : "${tecan_file()$file_dribble$name}",
-                           "type": "${tecan_file()$type}",
+                           "name" : "${tecan_file$file_dribble$name}",
+                           "type": "${tecan_file$type}",
                            "note" : "",
                            "samples":${samples_str}}}')
         db$update(str1, str2, upsert = TRUE)
-        showNotification(ui = str_interp("Created db entry for ${tecan_file()$file_dribble$name}"),
+        showNotification(ui = str_interp("Created db entry for ${tecan_file$file_dribble$name}"),
                          duration = 3,
                          type = "message")
 }

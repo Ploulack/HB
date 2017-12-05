@@ -343,7 +343,8 @@ gel_server <- function(input, output, session, gtoken) {
                                               sample_label = sample_label,
                                               clicks = clicks,
                                               last_del = last_del,
-                                current_file = input$file)
+                                              current_file = input$file,
+                                              session = session)
                                               #current_file = gel_pics$current_file)
                 last_click(NULL); label_drag(NULL)
                 }
@@ -391,7 +392,8 @@ gel_server <- function(input, output, session, gtoken) {
                                                       sample_label = smpl$sample,
                                                       clicks = clicks,
                                                       last_del = last_del,
-                                                      current_file = input$file)
+                                                      current_file = input$file, 
+                                                      session = session)
                                 
                         }
                 } else {

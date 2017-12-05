@@ -1,14 +1,10 @@
 tecan_server <- function(input, output, session, gtoken) {
         library(shiny); library(stringr); library(purrr)
-        source("tecan/tecan_extract.R")
-        source("tecan/tecan_values.R")
-        source("drive_helpers.R")
-        #source("tecan/tecan_db_server.R")
-        source("helpers/delete_file_button_module.R")
-        source("helpers/mongo_helpers.R")
-        source("tecan/tecan_nadh.R")
-        source("registry/registry_helpers.R")
-        source("registry/registry_values.R")
+        source("tecan/tecan_extract.R"); source("tecan/tecan_values.R")
+        source("drive_helpers.R"); source("helpers/delete_file_button_module.R")
+        source("helpers/mongo_helpers.R"); source("tecan/tecan_nadh.R")
+        source("registry/registry_helpers.R"); source("registry/registry_values.R")
+        
         
         #TODO: Try Promises on this
         registry <- registry_key_names(registry_url, registry_sheets)
@@ -18,46 +14,61 @@ tecan_server <- function(input, output, session, gtoken) {
                 source("mongo/db_values.R")
                 db <- db_from_environment(session, collection = "lab_experiments")
         }
+        if (!exists("protocols")) {
+                browser()
+                source("protocols/protocols_values.R")
+                protocols <- gs_key(protocols_sheet) %>%
+                        gs_read() %>%
+                        as_tibble()
+        }
         
         ns <- session$ns
-        
+        #Xml extracted data temporary container.
+        #TODO: Remove and replace with the tecan_file reactive values container...
         experiment <- reactiveValues()
+        
         db_files <- reactiveValues()
-        tecan <- reactiveValues(files = get_ordered_filenames_from_drive(as_id(drive_tecanURL)))
+        
+        #Container for ordered drive folder file names
+        tecan <- reactiveValues(files = drive_tecanURL %>%  #TODO: rename variable for folder id...
+                                        as_id() %>%
+                                        get_ordered_filenames_from_drive())
         removed_files <- reactiveVal(NULL)
         
-        choiceFiles <- eventReactive( c(input$refresh, removed_files(), tecan$files),{
-                dat <- tecan$files %>%
-                        filter(id != if (is.null(removed_files())) {""} else {removed_files()}) %>%
-                        select(id, exp_date)
-                dat$id %>% set_names(dat$exp_date)
-        })
+        #Generate the file selection list
+        choiceFiles <- eventReactive(c(input$refresh, # User checks for new files
+                                       removed_files(), # User has removed files
+                                       tecan$files), # User has changed files
+                                     {dat <- tecan$files %>%
+                                             filter(id != if (is.null(removed_files())) ""
+                                                    else removed_files()) %>%
+                                             select(id, exp_date)
+                                     dat$id %>% set_names(dat$exp_date)})
         
-        
+        #Display the file selection list
         observeEvent(c(choiceFiles(), input$refresh), {
                 choices <- choiceFiles()
                 updateSelectInput(session, "file",
                                   choices = choices,
                                   selected = ifelse(input$refresh == 0,
                                                     head(choices,1),
-                                                    input$file)
-                )
-                
+                                                    input$file))
         })
-        
-        tecan_file <- reactive({
-                return(
-                        list(
-                                "file" = input$file,
-                                "file_dribble" = tecan$files %>% filter(id == input$file),
-                                "samples" = experiment$raw$data$Batch_1$Measures$Sample,
-                                "measures" = experiment$raw$data$Batch_1$Measures,
-                                "type" = experiment$raw$type))
+        #Create and fill the tecan_file all inclusive reactive container
+        tecan_file <- reactiveValues()
+        observeEvent(input$file, {
+                tecan_file$file <- input$file
+                tecan_file$file_dribble <-  tecan$files %>% filter(id == input$file)
+                tecan_file$samples = experiment$raw$data$Batch_1$Measures$Sample
+                tecan_file$measures = experiment$raw$data$Batch_1$Measures
+                tecan_file$type = experiment$raw$type
+                tecan_file$user_msg = experiment$raw$user_msg
         })
         
         #A switch to keep track of db inserts
         data_tagged_and_saved <- reactiveVal(value = FALSE)
-
+        
+        #Delete file button module
         callModule(module = delete_exp_files,
                    id = "delete_button",
                    tecan_file = tecan_file,
@@ -65,6 +76,7 @@ tecan_server <- function(input, output, session, gtoken) {
                    files_list = choiceFiles(),
                    removed_files)
         
+        #On file change, extract data from the xml
         observeEvent(input$file, {
                 #Prevent re-download from Google Drive when the select files input is initialized or updated, 
                 if (input$file == wait_msg) return()
@@ -83,15 +95,24 @@ tecan_server <- function(input, output, session, gtoken) {
         }, priority = 1)
         
         #Get db records attached to new file
-        file_record <- eventReactive(tecan_file(), {
-                shiny::validate(need(!is.null(tecan_file()$type),
+        file_record <- eventReactive(input$file, {
+                shiny::validate(need(!is.null(tecan_file$type),
                                      message = FALSE))
                 
                 #Display db ui only if File is not kinetic...
-                if (tecan_file()$type %in% tecan_protocols_with_db) {
-                        return(mongo_file_entry(db, tecan_file()$file))
+                if (tecan_file$type %in% tecan_protocols_with_db) {
+                        return(mongo_file_entry(db, tecan_file$file))
                 } else {
                         return(list("entry_exists" = FALSE))
+                }
+        })
+        
+        observeEvent(experiment$raw, {
+                if (input$protocol != "New") return()
+                if (is.null(experiment$raw$user_msg)) {
+                        current_file <- tecan$files %>% filter(id == input$file)
+                        drive_mv(file = current_file,
+                                 path = )
                 }
         })
         
@@ -100,10 +121,11 @@ tecan_server <- function(input, output, session, gtoken) {
         #To prevent updating empty string notes...
         note_had_characters <- reactiveVal(FALSE)
         
-        observeEvent(tecan_file(), {
+        #This handles the sample taggings tecan file types that require it before db writing
+        observeEvent(input$file, {
                 shiny::validate(need(!is.null(registry) &&
-                                             !is.null(tecan_file()$samples) &&
-                                             !is.null(tecan_file()$type),
+                                             !is.null(tecan_file$samples) &&
+                                             !is.null(tecan_file$type),
                                      message = "Something wrong with registry or tecan file"))
                 
                 removeUI(selector = str_interp("#${ns('note_widget')}"))
@@ -111,17 +133,19 @@ tecan_server <- function(input, output, session, gtoken) {
                 
                 #Prepare the samples tibble
                 if (file_record()$entry_exists) {
-                        samples(file_record()$entry$samples[[1]] %>% as_tibble())
+                        samples(file_record()$entry$samples[[1]] %>%
+                                        as_tibble())
                         
                 } else {
-                        if (tecan_file()$type == tecan_protocols_with_db[1]) {
-                                tecan_smpls <- tecan_file()$samples[-1] 
+                        if (tecan_file$type == tecan_protocols_with_db[1]) {
+                                tecan_smpls <- tecan_file$samples[-1] 
                         }
-                        else if (tecan_file()$type == tecan_protocols_with_db[2]) {
+                        else if (tecan_file$type == tecan_protocols_with_db[2]) {
                                 # Select non-calibration samples
-                                max_idx <- tecan_file()$measures$Value %>% which.max()
-                                measured <- (max_idx + 1):length(tecan_file()$measures$Value)
-                                tecan_smpls <- tecan_file()$samples[measured]
+                                max_idx <- tecan_file$measures$Value %>%
+                                        which.max()
+                                measured <- (max_idx + 1):length(tecan_file$measures$Value)
+                                tecan_smpls <- tecan_file$samples[measured]
                         } else return()
                         
                         # Initiate the 'samples' reactiveVal with those samples
@@ -135,7 +159,7 @@ tecan_server <- function(input, output, session, gtoken) {
                 } 
                 
                 #Display the note text input
-                insertUI(selector =  "#Tecan-widgets_bar",
+                insertUI(selector =  paste0("#", ns("widgets_bar")),
                          where = "beforeBegin",
                          ui =  tags$div(id = ns("note_widget"),
                                         textInput(inputId = ns("note"),
@@ -149,7 +173,7 @@ tecan_server <- function(input, output, session, gtoken) {
                 # for each sample, display the widget
                 walk2(samples()$Sample,samples()$Key, ~ {
                         
-                        insertUI(selector = "#Tecan-widgets_bar",
+                        insertUI(selector = paste0("#", ns("widgets_bar")),
                                  where = "beforeEnd",
                                  ui = sample_widget_ui(id = ns(.x), .x, .y, tecan_file, registry)
                         )
@@ -165,7 +189,6 @@ tecan_server <- function(input, output, session, gtoken) {
                 })
                 
                 #Slowed down text input updates
-                
                 input_note <- debounce(reactive({input$note}), 1500)
 
                 #Save note when changed
@@ -180,7 +203,7 @@ tecan_server <- function(input, output, session, gtoken) {
                         }
                         if (str_length(input_note()) > 0) note_had_characters(TRUE)
                         else note_had_characters(FALSE)
-                        str1 <- str_interp('{"file" : "${tecan_file()$file}"}')
+                        str1 <- str_interp('{"file" : "${tecan_file$file}"}')
                         str2 <- str_interp('{"$set" : {"note" : "${input_note()}"}}')
                         note_upd <- db$update(str1, str2)
                         if (note_upd) {
@@ -190,6 +213,7 @@ tecan_server <- function(input, output, session, gtoken) {
                         }
                 }, ignoreInit = TRUE)
                 
+                #Gather the user entered keys for each sample
                 key_inputs <- reactive({
                         map_chr(samples()$Sample, ~ {
                                 if (is.null(control_samples[[.x]]) ||

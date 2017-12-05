@@ -6,13 +6,11 @@ source("tecan/tecan_ui.R")
 source("gel/gel_ui.R")
 source("auth/google_button_ui.R")
 source("hamilton/hamilton.R")
-#Includes all panels with the conditional buttons:
-source("root_ui_panels.R")
 
 display_tab <- function(panel_name, btn_label, module_ui_name) {
         btn_id <- paste0(module_ui_name, "_go")
         condition_string <- paste0("input.", btn_id)
-        module_function <- paste0(module_ui_name, "_ui") %>% as_function()
+        module_function <- paste0(module_ui_name, "_ui") %>% rlang::as_function()
         
         tabPanel(panel_name,
                  conditionalPanel(condition = "output.token_exists == true",

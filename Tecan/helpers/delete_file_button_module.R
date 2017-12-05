@@ -10,7 +10,6 @@ delete_exp_files <- function(input, output, session, tecan_file, db, files_list,
         
         ns <- session$ns
         observeEvent(input$remove_files_modal, {
-                print(tecan_file()$file_dribble)
                 showModal(modalDialog(
                         "Please confirm",
                         footer = tagList(
@@ -24,18 +23,18 @@ delete_exp_files <- function(input, output, session, tecan_file, db, files_list,
         observeEvent(input$remove_file, {
                 removeModal()
                 # Remove file
-                drive_mv(file = tecan_file()$file_dribble,
+                drive_mv(file = tecan_file$file_dribble,
                          path = as_id("https://drive.google.com/open?id=0B4_A43u3xZeRbWJiT2ZuVnpQR28"))
 
-                # # Remove db entry
-                remove_log <- db$remove(paste0('{"file" : "',tecan_file()$file_dribble$id,'"}'), just_one = TRUE)
+                #Remove db entry
+                remove_log <- db$remove(paste0('{"file" : "',tecan_file$file_dribble$id,'"}'), just_one = TRUE)
                 if (remove_log) {
-                        showNotification(ui = str_interp("Removed entry for file ${tecan_file()$file_dribble$name}") ,
+                        showNotification(ui = str_interp("Removed entry for file ${tecan_file$file_dribble$name}") ,
                                          duration = 3,
                                          type = "message")
                 }
                 # Update choices list
-                removed_files(removed_files() %>% append(tecan_file()$file_dribble$id))
+                removed_files(removed_files() %>% append(tecan_file$file_dribble$id))
                 
         })
 }

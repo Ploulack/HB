@@ -3,6 +3,31 @@ require(stringr)
 
 source("drive_helpers.R")
 
+#To extract custom field from tecan file used to tie it to workflows
+tecan_custom_msg <- function(tecan) {
+        custom <- tecan %>%
+                xml_find_all("Script") %>%
+                xml_contents() %>%
+                xml_children() %>%
+                xml_children() %>%
+                pluck(1) %>%
+                xml_children() %>%
+                pluck(1) %>%
+                xml_contents() %>%
+                pluck(6)
+        
+        if (is.null(custom)) {
+                print("No custom msg in file")
+                custom
+        } else {
+                custom_msg <- custom %>%
+                        xml_attrs() %>%
+                        "["("description")
+                print(paste0("Custom msg in file: ", custom_msg))
+                custom_msg
+        }
+}
+
 tecan_type <- function(xml_file) {
         type_wavelength <- xml_find_all(xml_file, "Section/Parameters/Parameter") %>%
                 xml_attrs() %>%
@@ -63,27 +88,25 @@ tecan_extract <- function(input_file, dribble) {
                 return()
         }
         
-        list("data" = data, "type" = tecan_type(tecan))
+        list("data" = data, "type" = tecan_type(tecan), "user_msg" = tecan_custom_msg(tecan))
 }
 
 calc_values <- function(list, molar_absorbance, path_length) {
         
-        list_delta <- list %>% map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%
+        list_delta <- list %>%
+                map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%
                 #Order by Sample label (should make a function)
                 map(~arrange(.x,
                              str_extract(Sample, "[A-Z]"),
                              as.integer( str_extract(Sample, "\\d+")))
                 ) %>%
-                
         #Substract 1st well, which is water
                 map(~mutate(.x, Delta = Value - Value[1],
                             Concentration = Delta / (molar_absorbance * path_length)))
         
         full_tbl <- list_delta %>%
-                
                 #Bind into single tbl
                 map_dfr(~.x) %>%
-                
                 #Order by Sample label (should make a function)
                 arrange( str_extract(Sample, "[A-Z]")   ,as.integer( str_extract(Sample, "\\d+")))
         
@@ -99,17 +122,6 @@ calc_values <- function(list, molar_absorbance, path_length) {
         list("Table" = full_tbl, "Results" = results)
 }
 
-#To extract custom field from tecan file:
-#test <- tecan %>%
-# xml_find_all("Script") %>%
-#         xml_contents() %>%
-#         xml_children() %>%
-#         xml_children() %>%
-#         pluck(1) %>%
-#         xml_children() %>%
-#         pluck(1) %>%
-#         xml_contents() %>%
-#         pluck(6) %>%
-#         xml_attrs()
+
 # 
 # test["description"]

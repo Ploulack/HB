@@ -4,58 +4,61 @@ tecan_ui <- function(id) {
         source(file = "helpers/delete_file_button_module.R")
         fluidPage(
                 sidebarPanel(width = 3,
+                             #Conditional to only display two parameter inputs for relevant file type
                              conditionalPanel(
                                      condition = paste0("output['",ns("type"),"'] == 'DNA Quantification'" ),
-                             fluidRow(
-                                     column(4,textInput(ns("absorbance"),
-                                                       "Absorbance",
-                                                       value = 0.02,
-                                                       #width = "35%",
-                                                       placeholder = "in ug / (ml.cm)")),
-                                     column(4, textInput(ns("path"),
-                                                       "Length",
-                                                       value = .19,
-                                                       #width = "35%",
-                                                       placeholder = "in cm"), offset = 1)
-                                      )),
+                                     fluidRow(
+                                             column(4,textInput(ns("absorbance"),
+                                                                "Absorbance",
+                                                                value = 0.02,
+                                                                #width = "35%",
+                                                                placeholder = "in ug / (ml.cm)")),
+                                             column(4, textInput(ns("path"),
+                                                                 "Length",
+                                                                 value = .19,
+                                                                 #width = "35%",
+                                                                 placeholder = "in cm"), offset = 1)
+                                     )),
+                             #Conditional not to display the refresh / delete buttons until file list received from drive
                              conditionalPanel(
                                      condition = paste0("input['", ns("file"), "'] != '", wait_msg, "'"),
                                      fluidRow(
                                              actionButton(ns("refresh"),
                                                           label = "Check for new files"),
                                              delete_exp_files_ui(ns("delete_button"))
-                             )
+                                     )),
+                             selectInput(ns("protocol"), "Protocols",
+                             choices = c("New", "No Protocol", "PT-mutagenesis_screening")),
+                             selectInput(ns("file"), "Latest Tecan Files",
+                                         choices = list(wait_msg),
+                                         width = "70%"),
+                             tags$hr(),
+                             conditionalPanel(
+                                     condition = paste0("output['",ns("type"),"'] == 'NADH Detection'" ),
+                                     actionButton(inputId = ns("open_calibration"),
+                                                  label = "Edit Concentrations"),
+                                     tableOutput(ns("calibration"))
                              ),
-                        selectInput(ns("file"), "Latest Tecan Files",
-                                choices = list(wait_msg),
-                                width = "70%"),
-                        tags$hr(),
-                        conditionalPanel(
-                                condition = paste0("output['",ns("type"),"'] == 'NADH Detection'" ),
-                                actionButton(inputId = ns("open_calibration"),
-                                             label = "Edit Concentrations"),
-                                tableOutput(ns("calibration"))
-                        ),
-                        conditionalPanel(
-                                condition = paste0("output['",ns("type"),"'] != 'NADH Detection'"),
-                        tableOutput(ns("summary"))
-                        )
+                             conditionalPanel(
+                                     condition = paste0("output['",ns("type"),"'] != 'NADH Detection'"),
+                                     tableOutput(ns("summary"))
+                             )
                 ),
                 mainPanel(
                         titlePanel(
                                 textOutput(ns("type"))
                         ),
                         fluidRow(tags$div(id = ns("widgets_bar"),
-                                 tags$hr())),
+                                          tags$hr())),
                         conditionalPanel(
                                 condition = paste0("output['",ns("type"),"'] != 'NADH Detection'"),
                                 plotOutput(ns("hist")),
                                 tableOutput(ns("batch"))
-                                ),
+                        ),
                         conditionalPanel(
                                 condition = paste0("output['",ns("type"),"'] == 'NADH Detection'" ),
-                        plotOutput(ns("regression_graph")),
-                        tableOutput(ns("samples_predicted"))
+                                plotOutput(ns("regression_graph")),
+                                tableOutput(ns("samples_predicted"))
                         )
                 )
         )

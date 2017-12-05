@@ -58,10 +58,10 @@ init_graph <- function(path) {
         return(graph)
 }
 
-display_remove_button <- function(ui_id, sample_key, sample_label, clicks, last_del, current_file) {
+display_remove_button <- function(ui_id, sample_key, sample_label, clicks, last_del, current_file, session) {
+        ns <- session$ns
         #Add new sample's remove button and additional information
-        #insertUI(selector = "hr",
-        insertUI(selector = "#Gel-_bar",
+        insertUI(selector = paste0("#", ns("_bar")),
                  where = "afterEnd",
                  ui = sample_ui(id = ui_id, sample_key = sample_key, sample_label))
         
