@@ -4,7 +4,7 @@ tecan_server <- function(input, output, session, gtoken) {
         source("drive_helpers.R"); source("helpers/delete_file_button_module.R")
         source("helpers/mongo_helpers.R"); source("tecan/tecan_nadh.R")
         source("registry/registry_helpers.R"); source("registry/registry_values.R")
-        
+        ns <- session$ns
         
         #TODO: Try Promises on this
         registry <- registry_key_names(registry_url, registry_sheets)
@@ -14,18 +14,9 @@ tecan_server <- function(input, output, session, gtoken) {
                 source("mongo/db_values.R")
                 db <- db_from_environment(session, collection = "lab_experiments")
         }
-        if (!exists("protocols")) {
-                browser()
-                source("protocols/protocols_values.R")
-                protocols <- gs_key(protocols_sheet) %>%
-                        gs_read() %>%
-                        as_tibble()
-        }
         
-        ns <- session$ns
         #Xml extracted data temporary container.
-        #TODO: Remove and replace with the tecan_file reactive values container...
-        experiment <- reactiveValues()
+        experiment <- reactiveValues() #TODO: Remove and replace with the tecan_file reactive values container...
         
         db_files <- reactiveValues()
         
@@ -107,13 +98,35 @@ tecan_server <- function(input, output, session, gtoken) {
                 }
         })
         
+        #PROTOCOLS
+        #On first opening, move files to their appropriate folders
         observeEvent(experiment$raw, {
+                if (!exists("protocols")) {
+                        source("protocols/protocols_functions.R")
+                        protocols <- protocols_get(drive_tecanURL)
+                }
+                #Fill the Protocol dropdown with names from protocol sheet
+                updateSelectInput(session,inputId = ns("protocol"),
+                                  choices = "New" %>% append(protocols$name),
+                                  selected = "New")
+                browser()
                 if (input$protocol != "New") return()
-                if (is.null(experiment$raw$user_msg)) {
+                if (is.null(experiment$raw$user_msg) || str_length(experiment$raw$user_msg) == 0) {
                         current_file <- tecan$files %>% filter(id == input$file)
                         drive_mv(file = current_file,
-                                 path = )
+                                 path = protocols %>%
+                                         filter(name == "Unitary") %>%
+                                         pull(folder_url) %>%
+                                         as_id()) 
+                        #TODO: match between protocol entry and folder, 
+                
+                } else {
+                        # popup choice to the user to do the matching
+                        # Add button to open directly the protocols sheet in that popup
+                        # 
                 }
+                #Update selectInput(input id = ns(protocol), selected = the user selected protocol OR unitary
+                #Update selectInput(input id = ns(file), selected = same file)
         })
         
         #Container for samples
