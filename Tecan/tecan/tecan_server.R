@@ -14,6 +14,18 @@ tecan_server <- function(input, output, session, gtoken) {
                 source("mongo/db_values.R")
                 db <- db_from_environment(session, collection = "lab_experiments")
         }
+        #build the protocol tibble from the spread sheet
+        if (!exists("protocols")) {
+                source("protocols/protocols_functions.R")
+                protocols <- protocols_get(drive_tecanURL)
+        }
+        
+        # Update the Protocol select input
+        updateSelectInput(session,
+                          inputId = "protocol",
+                          choices = "New" %>% append(protocols$name),
+                          selected = "New")
+
         
         #Xml extracted data temporary container.
         experiment <- reactiveValues() #TODO: Remove and replace with the tecan_file reactive values container...
@@ -21,9 +33,11 @@ tecan_server <- function(input, output, session, gtoken) {
         db_files <- reactiveValues()
         
         #Container for ordered drive folder file names
-        tecan <- reactiveValues(files = drive_tecanURL %>%  #TODO: rename variable for folder id...
+        tecan <- reactiveValues(files = drive_tecanURL %>%
                                         as_id() %>%
-                                        get_ordered_filenames_from_drive())
+                                        get_ordered_filenames_from_drive(),
+                                selected_file = NULL,
+                                selected_protocol = NULL)
         removed_files <- reactiveVal(NULL)
         
         #Generate the file selection list
@@ -42,9 +56,12 @@ tecan_server <- function(input, output, session, gtoken) {
                 updateSelectInput(session, "file",
                                   choices = choices,
                                   selected = ifelse(input$refresh == 0,
-                                                    head(choices,1),
+                                                    if (is.null(tecan$selected_file)) head(choices,1)
+                                                    else tecan$selected_file,
                                                     input$file))
+                tecan$selected_file <- NULL
         })
+        
         #Create and fill the tecan_file all inclusive reactive container
         tecan_file <- reactiveValues()
         observeEvent(input$file, {
@@ -101,15 +118,6 @@ tecan_server <- function(input, output, session, gtoken) {
         #PROTOCOLS
         #On first opening, move files to their appropriate folders
         observeEvent(experiment$raw, {
-                if (!exists("protocols")) {
-                        source("protocols/protocols_functions.R")
-                        protocols <- protocols_get(drive_tecanURL)
-                }
-                #Fill the Protocol dropdown with names from protocol sheet
-                updateSelectInput(session,inputId = ns("protocol"),
-                                  choices = "New" %>% append(protocols$name),
-                                  selected = "New")
-                browser()
                 if (input$protocol != "New") return()
                 if (is.null(experiment$raw$user_msg) || str_length(experiment$raw$user_msg) == 0) {
                         current_file <- tecan$files %>% filter(id == input$file)
@@ -119,15 +127,31 @@ tecan_server <- function(input, output, session, gtoken) {
                                          pull(folder_url) %>%
                                          as_id()) 
                         #TODO: match between protocol entry and folder, 
-                
+                file_moved_to <- "Unitary"
                 } else {
                         # popup choice to the user to do the matching
                         # Add button to open directly the protocols sheet in that popup
                         # 
                 }
+                # Switch UI to the protocol where this file was moved to
+                updateSelectInput(session = session,
+                                  inputId = "protocol",
+                                  selected = file_moved_to)
+                
+                tecan$selected_file <- input$file
+                
                 #Update selectInput(input id = ns(protocol), selected = the user selected protocol OR unitary
                 #Update selectInput(input id = ns(file), selected = same file)
         })
+        
+        observeEvent(input$protocol, {
+                tecan$files <- protocols %>%
+                        filter(name == input$protocol) %$%
+                        folder_url %>%
+                        googledrive::as_id() %>%
+                        get_ordered_filenames_from_drive()
+        }, ignoreInit = TRUE)
+        
         
         #Container for samples
         samples <- reactiveVal(value = NULL)

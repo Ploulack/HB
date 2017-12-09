@@ -5,7 +5,7 @@ source("drive_helpers.R")
 
 #To extract custom field from tecan file used to tie it to workflows
 tecan_custom_msg <- function(tecan) {
-        custom <- tecan %>%
+        custom_access <- function() {tecan %>%
                 xml_find_all("Script") %>%
                 xml_contents() %>%
                 xml_children() %>%
@@ -14,13 +14,15 @@ tecan_custom_msg <- function(tecan) {
                 xml_children() %>%
                 pluck(1) %>%
                 xml_contents() %>%
-                pluck(6)
+                pluck(6)}
         
-        if (is.null(custom)) {
+        custom <- safely(custom_access)()
+        
+        if (is.null(custom$result)) {
                 print("No custom msg in file")
-                custom
+                custom$result
         } else {
-                custom_msg <- custom %>%
+                custom_msg <- custom$result %>%
                         xml_attrs() %>%
                         "["("description")
                 print(paste0("Custom msg in file: ", custom_msg))

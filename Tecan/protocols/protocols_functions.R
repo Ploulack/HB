@@ -2,7 +2,7 @@ library(purrr)
 source("protocols/protocols_values.R")
 
 protocols_get <- function(drive_folder) {
-        prot_gsheet <- gs_key(protocols_sheet)
+        prot_gsheet <- gs_url(protocols_sheet)
         
         protocols <- prot_gsheet %>%
                 gs_read() %>%
@@ -19,24 +19,70 @@ protocols_get <- function(drive_folder) {
                         if (!prot_row$name %in% (tecan_folder_ls %>% '[['("name")))
                                 drbl <- drive_mkdir(name = prot_row$name, 
                                                     parent = as_id(drive_folder))
-                        else
-                                drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
                         
-                        # Gett the new folder link
-                        link <- drbl %>%
-                                '[['("drive_resource") %>%
-                                '[['(1) %>%
-                                '[['("webViewLink")
+                        else drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
                         
-                        # insert folder url in the gsheet
+                        #Create the plates index
+                        stopifnot(is.integer(prot_row$total_plates))
+                        temp_csv <- str_interp("${prot_row$name} plates processed date.csv")
+                        path_temp_csv <- paste0("temp/",temp_csv)
+                        protocol_folder_ls <- drive_ls(drbl)
+
+                        if (!temp_csv %in% (protocol_folder_ls %$% name)) {
+                                tibble(processed_date = rep("unprocessed", prot_row$total_plates)) %>%
+                                        write_csv(path_temp_csv, col_names = TRUE)
+                                plates_processed <- drive_upload(media = path_temp_csv,
+                                                                 path = drbl,
+                                                                 type = "text/csv")
+                        } else {
+                                
+                                plates_processed <- protocol_folder_ls %>% filter(name == temp_csv)
+                        }
+                        
+                        # Get the new folder link
+                        links <- list(drbl, plates_processed) %>%
+                                map_chr(~ .x %>%
+                                                '[['("drive_resource") %>%
+                                                '[['(1) %>%
+                                                '[['("webViewLink"))
+                        
+                        # insert folder and plates tracker url  in the gsheet
                         gs_edit_cells(ss = prot_gsheet,
                                       ws = 1,
-                                      input = link,
-                                      anchor = paste0("D", i + 1))
+                                      input = links,
+                                      anchor = paste0("E", i + 1),
+                                      byrow = TRUE)
                 }
         }
         
         return(protocols)
 }
 
-
+protocols_set_modal <- function(file_name, custom_msg, protocols, remaining ,required_msg = NULL, ns) {
+        showModal(modalDialog(
+                div(str_interp("Custom message for ${file_name} is ${custom_msg}.")),
+                
+                selectInput(inputId = ns("set_protocol"),
+                            label = "Select matching protocol",
+                            choices = protocols$name[-1, ]),
+                
+                selectInput(inputId = ns("set_plate_nb"),
+                            label = "Select plate nb",
+                            choices = "",
+                            multiple = FALSE),
+                
+                if (!is.null(required_msg))
+                        div(tags$b(required_msg, style = "color: red;")),
+                footer = tagList(actionButton(inputId = ns("ok_protocol"),
+                                              label = "OK"),
+                                 tags$a(class = "btn btn-default",
+                                        href = protocols_sheet,
+                                        "Create new protocol",
+                                        target = "_blank")),
+                size = "l"
+                ))
+        
+        #TODO: check dans la gestion de la réponse que la plaque n'a pas déjà été déclarée, sinon repopup
+        #TODO: gestion db...
+        #TODO: management of total nb of plates to check entered value
+}

@@ -27,7 +27,8 @@ tecan_ui <- function(id) {
                                                           label = "Check for new files"),
                                              delete_exp_files_ui(ns("delete_button"))
                                      )),
-                             selectInput(ns("protocol"), "Protocols",
+                             selectInput(ns("protocol"),
+                                         "Protocols",
                              choices = c("New", "No Protocol", "PT-mutagenesis_screening")),
                              selectInput(ns("file"), "Latest Tecan Files",
                                          choices = list(wait_msg),
