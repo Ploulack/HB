@@ -1,9 +1,10 @@
 tecan_server <- function(input, output, session, gtoken) {
-        library(shiny); library(stringr); library(purrr)
+        library(shiny); library(stringr); library(purrr); library(magrittr)
         source("tecan/tecan_extract.R"); source("tecan/tecan_values.R")
         source("drive_helpers.R"); source("helpers/delete_file_button_module.R")
         source("helpers/mongo_helpers.R"); source("tecan/tecan_nadh.R")
         source("registry/registry_helpers.R"); source("registry/registry_values.R")
+        source("helpers/strings.R")
         ns <- session$ns
         
         #TODO: Try Promises on this
@@ -17,13 +18,16 @@ tecan_server <- function(input, output, session, gtoken) {
         #build the protocol tibble from the spread sheet
         if (!exists("protocols")) {
                 source("protocols/protocols_functions.R")
-                protocols <- protocols_get(drive_tecanURL)
+                prot_gsheet <- gs_url(protocols_sheet)
+                protocols <- reactiveVal(protocols_get(drive_tecanURL, prot_gsheet) %>%
+                        mutate(index = 1:n())
+                )
         }
         
         # Update the Protocol select input
         updateSelectInput(session,
                           inputId = "protocol",
-                          choices = "New" %>% append(protocols$name),
+                          choices = "New" %>% append(protocols()$name),
                           selected = "New")
 
         
@@ -64,7 +68,7 @@ tecan_server <- function(input, output, session, gtoken) {
         
         #Create and fill the tecan_file all inclusive reactive container
         tecan_file <- reactiveValues()
-        observeEvent(input$file, {
+        observeEvent(input$go_file, {
                 tecan_file$file <- input$file
                 tecan_file$file_dribble <-  tecan$files %>% filter(id == input$file)
                 tecan_file$samples = experiment$raw$data$Batch_1$Measures$Sample
@@ -85,7 +89,7 @@ tecan_server <- function(input, output, session, gtoken) {
                    removed_files)
         
         #On file change, extract data from the xml
-        observeEvent(input$file, {
+        observeEvent(input$go_file, {
                 #Prevent re-download from Google Drive when the select files input is initialized or updated, 
                 if (input$file == wait_msg) return()
                 else if (input$file == "") {
@@ -96,6 +100,7 @@ tecan_server <- function(input, output, session, gtoken) {
                         )
                         )
                 } else {
+                        print(paste0("Extracting file : ", input$file))
                         experiment$raw <- tecan_extract(input$file, tecan$files)
                         if (exists("data_tagged_and_saved")) rm("data_tagged_and_saved")
                         data_tagged_and_saved <- reactiveVal(FALSE)
@@ -103,7 +108,7 @@ tecan_server <- function(input, output, session, gtoken) {
         }, priority = 1)
         
         #Get db records attached to new file
-        file_record <- eventReactive(input$file, {
+        file_record <- eventReactive(input$go_file, {
                 shiny::validate(need(!is.null(tecan_file$type),
                                      message = FALSE))
                 
@@ -115,39 +120,138 @@ tecan_server <- function(input, output, session, gtoken) {
                 }
         })
         
+        #DEBUG
+        observeEvent(protocols(), {
+                print(protocols()$processed_plates %>% walk(~ if (!is.na(.x)) print(.x)))
+        })
+        
         #PROTOCOLS
         #On first opening, move files to their appropriate folders
         observeEvent(experiment$raw, {
+                move_drive_file <- function(protocols, prot_name) {
+                        tecan$files %>%
+                                filter(id == input$file) %>%
+                                drive_mv(path = protocols %>%
+                                                 filter(name == prot_name) %>%
+                                                 pull(folder_url) %>%
+                                                 as_id())
+                }
+                
+                update_uis <- function(prot_name) {
+                        # Switch UI to the protocol where this file was moved to
+                        updateSelectInput(session = session,
+                                          inputId = "protocol",
+                                          selected = prot_name)
+                        
+                        #Set whicih file to select after the files menu update
+                        tecan$selected_file <- input$file
+                }
+                
                 if (input$protocol != "New") return()
                 if (is.null(experiment$raw$user_msg) || str_length(experiment$raw$user_msg) == 0) {
-                        current_file <- tecan$files %>% filter(id == input$file)
-                        drive_mv(file = current_file,
-                                 path = protocols %>%
-                                         filter(name == "Unitary") %>%
-                                         pull(folder_url) %>%
-                                         as_id()) 
-                        #TODO: match between protocol entry and folder, 
-                file_moved_to <- "Unitary"
+                        move_drive_file(protocols(), prot_name = "Unitary")
+                        update_uis("Unitary")
                 } else {
                         # popup choice to the user to do the matching
-                        # Add button to open directly the protocols sheet in that popup
-                        # 
+                        protocols_set_modal(input = input,
+                                            tecan_file$file_dribble$name,
+                                            experiment$raw$user_msg,
+                                            protocols = protocols(),
+                                            session = session)
+                        
+                        #Update choices of plates in modal dialog
+                        observeEvent(input$set_protocol, {
+                                
+                                if (!input$set_protocol %in% protocols()$name) return()
+                                selected_prot <- protocols() %>%
+                                        filter(name == input$set_protocol)
+                                proced_plates <- selected_prot %$%
+                                        processed_plates %>%
+                                        str_split(", ") %>%
+                                        simplify()
+                                
+                                total_plates <- 1:selected_prot$total_plates
+                                plate_choices <- if (is.na(proced_plates)) total_plates
+                                else total_plates %>%
+                                        keep(!total_plates %in% proced_plates)
+                                        
+                                updateSelectInput(session = session,
+                                          inputId = "set_plate_nb",
+                                          choices = plate_choices)
+                                        
+                        }, ignoreInit = TRUE)
+                        
+                        #On modal validation, update protocols with selected plate
+                        observeEvent(input$ok_protocol, {
+                                removeModal()
+                                
+                                selected_prot <- protocols() %>%
+                                        filter(name == input$set_protocol)
+                                #Update protocols gsheet with new plate
+                                #Add new plate to string
+                                if (is.na(selected_prot$processed_plates))
+                                        updated_plates <- input$set_plate_nb
+                                else updated_plates <- selected_prot$processed_plates %>%
+                                        str_c(", ", input$set_plate_nb) %>%
+                                        str_split(", ") %>%
+                                        simplify() %>%
+                                        as.integer() %>%
+                                        unique() %>%   #I have a feeling this observer repeats...and so by forcing unique, prevent issues
+                                        sort.int() %>%
+                                        as.character() %>%
+                                        str_c(collapse = ", ")
+                                
+                                tmp_prot <- protocols()
+                                tmp_prot[selected_prot$index, "processed_plates"] <- updated_plates
+                                protocols(tmp_prot)
+                                
+                                selected_prot <- protocols() %>%
+                                        filter(name == input$set_protocol)
+                                
+                                gs_edit_cells(ss = prot_gsheet,
+                                              ws = 1,
+                                              #TODO: tie the column to the procols tibble's column name...
+                                              anchor = paste0("E", selected_prot$index + 1),
+                                              input = str_c("'", updated_plates)) #The added quote is to force string on gsheet
+                                
+                                #Update CSV with new plate
+                                csv_path <- "temp/modal_dialog_csv"
+                                
+                                #Download csv file and keep its drive dribble
+                                csv_drive_id <- selected_prot$plates_processed_url %>%
+                                        as_id() %>%
+                                        drive_download(path = csv_path,
+                                                       overwrite = TRUE)
+                                
+                                plates <- read_csv(csv_path)
+                                
+                                #Update the tibble with the current time and with the tecan xml file link
+                                plates[(input$set_plate_nb %>% as.integer()), ] <- tibble(
+                                        processed_date = Sys.time() %>%
+                                        force_tz(tzone = "EST") %>% as.character(),
+                                        tecan_file_url = tecan_file$file_dribble %>%
+                                                dribble_get_link())
+                                write_csv(plates, csv_path)
+
+                                drive_update(file = csv_drive_id,
+                                             media = csv_path)
+
+                                #Move Tecan file to protocol folder
+                                move_drive_file(protocols(), prot_name = input$set_protocol)
+                                #Set user file selectInput on the same file
+                                update_uis(prot_name = input$set_protocol)
+                        }, ignoreInit = TRUE)
                 }
-                # Switch UI to the protocol where this file was moved to
-                updateSelectInput(session = session,
-                                  inputId = "protocol",
-                                  selected = file_moved_to)
-                
-                tecan$selected_file <- input$file
-                
-                #Update selectInput(input id = ns(protocol), selected = the user selected protocol OR unitary
-                #Update selectInput(input id = ns(file), selected = same file)
         })
         
+        #On change of selected protocol, update file list from drive
         observeEvent(input$protocol, {
-                tecan$files <- protocols %>%
+                drive_url <- if (input$protocol == "New") drive_tecanURL 
+                else protocols() %>%
                         filter(name == input$protocol) %$%
-                        folder_url %>%
+                        folder_url
+                
+                tecan$files <- drive_url %>%
                         googledrive::as_id() %>%
                         get_ordered_filenames_from_drive()
         }, ignoreInit = TRUE)
@@ -159,7 +263,7 @@ tecan_server <- function(input, output, session, gtoken) {
         note_had_characters <- reactiveVal(FALSE)
         
         #This handles the sample taggings tecan file types that require it before db writing
-        observeEvent(input$file, {
+        observeEvent(input$go_file, {
                 shiny::validate(need(!is.null(registry) &&
                                              !is.null(tecan_file$samples) &&
                                              !is.null(tecan_file$type),

@@ -29,10 +29,14 @@ tecan_ui <- function(id) {
                                      )),
                              selectInput(ns("protocol"),
                                          "Protocols",
-                             choices = c("New", "No Protocol", "PT-mutagenesis_screening")),
-                             selectInput(ns("file"), "Latest Tecan Files",
-                                         choices = list(wait_msg),
-                                         width = "70%"),
+                             choices = "New", width = "70%"),
+                             fluidRow(
+                                     column(9, selectInput(ns("file"),
+                                                           "Latest Tecan Files",
+                                                           choices = wait_msg)),
+                                     column(1, actionButton(ns("go_file"),
+                                                           "Go")
+                                      )),
                              tags$hr(),
                              conditionalPanel(
                                      condition = paste0("output['",ns("type"),"'] == 'NADH Detection'" ),

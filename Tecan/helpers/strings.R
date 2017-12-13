@@ -26,3 +26,9 @@ first_unused <- function(used_labels = NULL) {
         }
 }
 
+dribble_get_link <- function(dribble) {
+                dribble %>%
+                '[['("drive_resource") %>%
+                '[['(1) %>%
+                '[['("webViewLink")
+}
