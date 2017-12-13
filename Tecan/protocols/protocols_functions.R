@@ -2,23 +2,32 @@ library(purrr)
 source("protocols/protocols_values.R"); source("helpers/strings.R")
 
 protocols_get <- function(drive_folder, prot_gsheet) {
+        #Trigger variable to update the csv in the Google Sync folder for hami methods
+        update_hami_csv <- FALSE
         
         protocols <- prot_gsheet %>%
                 gs_read() %>%
                 mutate(date_finished = lubridate::dmy(date_finished)) %>%
-                filter(is.na(date_finished) | date_finished > Sys.Date())
+                filter(is.na(date_finished) | date_finished > Sys.Date()) %>%
+                mutate(index = 1:n())
+        
         
         #Create directory and add directory link to spreadsheet if a protocol doesn't have its own
         for (i in (1:nrow(protocols))) {
+                
                 prot_row <- protocols[i, ]
                 if (is.na(prot_row$folder_url)) {
+                        update_hami_csv <- TRUE
                         #Create the drive directory
                         # First check if the directory doesn't already exist
                         tecan_folder_ls <- drive_ls(as_id(drive_folder))
-                        if (!prot_row$name %in% (tecan_folder_ls %>% '[['("name")))
+                        if (!prot_row$name %in% (tecan_folder_ls %>% '[['("name"))) {
                                 drbl <- drive_mkdir(name = prot_row$name, 
                                                     parent = as_id(drive_folder))
-                        
+                                hami_drbl <- drive_mkdir(name = prot_row$name,
+                                                         parent = as_id(protocols_hami_folder))
+                        }
+                                
                         else drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
                         
                         #Create the plates index
@@ -40,7 +49,7 @@ protocols_get <- function(drive_folder, prot_gsheet) {
                         }
                         
                         # Get the new folder link
-                        links <- list(drbl, plates_processed) %>%
+                        links <- list(drbl, plates_processed, hami_drbl) %>%
                                 map_chr(dribble_get_link)
                         
                         # insert folder and plates tracker url in the gsheet
@@ -55,9 +64,24 @@ protocols_get <- function(drive_folder, prot_gsheet) {
                         protocols[i, "plates_processed_url"] <- links[2]
                 }
         }
-        
+        if (update_hami_csv) {
+                tmp_path <- "temp/protocols_list.csv"
+                browser()
+                protocols %>%
+                        select(index, name) %>%
+                        filter(name != protocols$name[1]) %>%
+                        mutate(index = index - 1) %>%
+                        write.csv(tmp_path,
+                                  quote = TRUE,
+                                  eol = "\r\n",
+                                  row.names = FALSE)
+                protocols_csv %>%
+                        as_id() %>%
+                        drive_update(media = tmp_path)
+        }
         return(protocols)
 }
+
 
 protocols_set_modal <- function(input, file_name, custom_msg, protocols,required_msg = NULL, session) {
         #TODO: gestion db...

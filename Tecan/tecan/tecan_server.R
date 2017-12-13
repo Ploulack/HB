@@ -19,8 +19,7 @@ tecan_server <- function(input, output, session, gtoken) {
         if (!exists("protocols")) {
                 source("protocols/protocols_functions.R")
                 prot_gsheet <- gs_url(protocols_sheet)
-                protocols <- reactiveVal(protocols_get(drive_tecanURL, prot_gsheet) %>%
-                        mutate(index = 1:n())
+                protocols <- reactiveVal(protocols_get(drive_tecanURL, prot_gsheet)
                 )
         }
         
