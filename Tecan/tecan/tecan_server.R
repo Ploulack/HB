@@ -19,8 +19,7 @@ tecan_server <- function(input, output, session, gtoken) {
         if (!exists("protocols")) {
                 source("protocols/protocols_functions.R")
                 prot_gsheet <- gs_url(protocols_sheet)
-                protocols <- reactiveVal(protocols_get(drive_tecanURL, prot_gsheet)
-                )
+                protocols <- reactiveVal(protocols_get(drive_tecanURL, prot_gsheet))
         }
         
         # Update the Protocol select input
@@ -74,6 +73,7 @@ tecan_server <- function(input, output, session, gtoken) {
                 tecan_file$measures = experiment$raw$data$Batch_1$Measures
                 tecan_file$type = experiment$raw$type
                 tecan_file$user_msg = experiment$raw$user_msg
+                tecan_file$data = experiment$raw$data
         })
         
         #A switch to keep track of db inserts
@@ -87,7 +87,7 @@ tecan_server <- function(input, output, session, gtoken) {
                    files_list = choiceFiles(),
                    removed_files)
         
-        #On file change, extract data from the xml
+        #On button Go pressed, extract data from the xml currently listed
         observeEvent(input$go_file, {
                 #Prevent re-download from Google Drive when the select files input is initialized or updated, 
                 if (input$file == wait_msg) return()
@@ -119,146 +119,152 @@ tecan_server <- function(input, output, session, gtoken) {
                 }
         })
         
-        #DEBUG
-        observeEvent(protocols(), {
-                print(protocols()$processed_plates %>% walk(~ if (!is.na(.x)) print(.x)))
-        })
+        #Temporary code to treat all tecan files and add back values to them
+        # observeEvent(file_record(), {
+        #         
+        # })
         
-        #PROTOCOLS
+        
+        #### PROTOCOLS ####
         #On first opening, move files to their appropriate folders
         observeEvent(experiment$raw, {
-                move_drive_file <- function(protocols, prot_name) {
-                        tecan$files %>%
-                                filter(id == input$file) %>%
-                                drive_mv(path = protocols %>%
-                                                 filter(name == prot_name) %>%
-                                                 pull(folder_url) %>%
-                                                 as_id())
-                }
-                
-                update_uis <- function(prot_name) {
-                        # Switch UI to the protocol where this file was moved to
-                        updateSelectInput(session = session,
-                                          inputId = "protocol",
-                                          selected = prot_name)
-                        
-                        #Set whicih file to select after the files menu update
-                        tecan$selected_file <- input$file
-                }
-                
                 if (input$protocol != "New") return()
                 if (is.null(experiment$raw$user_msg) || str_length(experiment$raw$user_msg) == 0) {
-                        move_drive_file(protocols(), prot_name = "Unitary")
-                        update_uis("Unitary")
+                        move_drive_file(protocols(), prot_name = "Unitary", tecan, input)
+                        update_uis("Unitary", tecan = tecan, input = input, session = session)
                 } else {
-                        # popup choice to the user to do the matching
+                        #If the Tecan file includes a custom msg popup choice to the user to do the matching
                         protocols_set_modal(input = input,
                                             tecan_file$file_dribble$name,
                                             experiment$raw$user_msg,
                                             protocols = protocols(),
                                             session = session)
-                        
-                        #Update choices of plates in modal dialog
-                        observeEvent(input$set_protocol, {
-                                
-                                if (!input$set_protocol %in% protocols()$name) return()
-                                selected_prot <- protocols() %>%
-                                        filter(name == input$set_protocol)
-                                proced_plates <- selected_prot %$%
-                                        processed_plates %>%
-                                        str_split(", ") %>%
-                                        simplify()
-                                
-                                total_plates <- 1:selected_prot$total_plates
-                                plate_choices <- if (is.na(proced_plates)) total_plates
-                                else total_plates %>%
-                                        keep(!total_plates %in% proced_plates)
-                                        
-                                updateSelectInput(session = session,
-                                          inputId = "set_plate_nb",
-                                          choices = plate_choices)
-                                        
-                        }, ignoreInit = TRUE)
-                        
-                        #On modal validation, update protocols with selected plate
-                        observeEvent(input$ok_protocol, {
-                                removeModal()
-                                
-                                selected_prot <- protocols() %>%
-                                        filter(name == input$set_protocol)
-                                #Update protocols gsheet with new plate
-                                #Add new plate to string
-                                if (is.na(selected_prot$processed_plates))
-                                        updated_plates <- input$set_plate_nb
-                                else updated_plates <- selected_prot$processed_plates %>%
-                                        str_c(", ", input$set_plate_nb) %>%
-                                        str_split(", ") %>%
-                                        simplify() %>%
-                                        as.integer() %>%
-                                        unique() %>%   #I have a feeling this observer repeats...and so by forcing unique, prevent issues
-                                        sort.int() %>%
-                                        as.character() %>%
-                                        str_c(collapse = ", ")
-                                
-                                tmp_prot <- protocols()
-                                tmp_prot[selected_prot$index, "processed_plates"] <- updated_plates
-                                protocols(tmp_prot)
-                                
-                                selected_prot <- protocols() %>%
-                                        filter(name == input$set_protocol)
-                                
-                                gs_edit_cells(ss = prot_gsheet,
-                                              ws = 1,
-                                              #TODO: tie the column to the procols tibble's column name...
-                                              anchor = paste0("E", selected_prot$index + 1),
-                                              input = str_c("'", updated_plates)) #The added quote is to force string on gsheet
-                                
-                                #Update CSV with new plate
-                                csv_path <- "temp/modal_dialog_csv"
-                                
-                                #Download csv file and keep its drive dribble
-                                csv_drive_id <- selected_prot$plates_processed_url %>%
-                                        as_id() %>%
-                                        drive_download(path = csv_path,
-                                                       overwrite = TRUE)
-                                
-                                plates <- read_csv(csv_path)
-                                
-                                #Update the tibble with the current time and with the tecan xml file link
-                                plates[(input$set_plate_nb %>% as.integer()), ] <- tibble(
-                                        processed_date = Sys.time() %>%
-                                        force_tz(tzone = "EST") %>% as.character(),
-                                        tecan_file_url = tecan_file$file_dribble %>%
-                                                dribble_get_link())
-                                write_csv(plates, csv_path)
-
-                                drive_update(file = csv_drive_id,
-                                             media = csv_path)
-
-                                #Move Tecan file to protocol folder
-                                move_drive_file(protocols(), prot_name = input$set_protocol)
-                                #Set user file selectInput on the same file
-                                update_uis(prot_name = input$set_protocol)
-                        }, ignoreInit = TRUE)
                 }
         })
         
+        #Update choices of plates in modal dialog
+        observeEvent(input$set_protocol, {
+                
+                if (!input$set_protocol %in% protocols()$name) return()
+                selected_prot <- protocols() %>%
+                        filter(name == input$set_protocol)
+                proced_plates <- selected_prot %$%
+                        processed_plates %>%
+                        str_split(", ") %>%
+                        simplify()
+                
+                total_plates <- 1:selected_prot$total_plates
+                plate_choices <- if (is.na(proced_plates)) total_plates
+                else total_plates %>%
+                        keep(!total_plates %in% proced_plates)
+                
+                updateSelectInput(session = session,
+                                  inputId = "set_plate_nb",
+                                  choices = plate_choices)
+                
+        }, ignoreInit = TRUE)
+        
+        #On modal validation, update protocols with selected plate
+        observeEvent(input$ok_protocol, {
+                #TODO: Add checks on the inputs...
+                removeModal()
+                
+                experiment$protocol <- input$set_protocol
+                experiment$plate <- input$set_plate_nb
+                selected_prot <- protocols() %>%
+                        filter(name == input$set_protocol)
+                #Update protocols gsheet with new plate
+                #Add new plate to string
+                if (is.na(selected_prot$processed_plates))
+                        updated_plates <- input$set_plate_nb
+                else updated_plates <- selected_prot$processed_plates %>%
+                        str_c(", ", input$set_plate_nb) %>%
+                        str_split(", ") %>%
+                        simplify() %>%
+                        as.integer() %>%
+                        unique() %>%   #I have a feeling this observer repeats...and so by forcing unique, prevent issues
+                        sort.int() %>%
+                        as.character() %>%
+                        str_c(collapse = ", ")
+                
+                tmp_prot <- protocols()
+                tmp_prot[selected_prot$index, "processed_plates"] <- updated_plates
+                protocols(tmp_prot)
+                
+                selected_prot <- protocols() %>%
+                        filter(name == input$set_protocol)
+                #Get the A, B, ..Z col ID for the gsheet insertion
+                # More resilient to gsheet columns reordering
+                colID <- gsheet_colID_from_tibble(protocols(), "processed_plates")
+                gs_edit_cells(ss = prot_gsheet,
+                              ws = 1,
+                              #TODO: tie the column to the procols tibble's column name...
+                              anchor = paste0(colID, selected_prot$index + 1),
+                              input = str_c("'", updated_plates)) #The added quote is to force string on gsheet
+                
+                #Update CSV with new plate
+                csv_path <- "temp/modal_dialog_csv"
+                
+                #Download csv file and keep its drive dribble
+                csv_drive_id <- selected_prot$plates_processed_url %>%
+                        as_id() %>%
+                        drive_download(path = csv_path,
+                                       overwrite = TRUE)
+                
+                plates <- read_csv(csv_path)
+                
+                #Update the tibble with the current time and with the tecan xml file link
+                plates[(input$set_plate_nb %>% as.integer()), ] <- tibble(
+                        processed_date = Sys.time() %>%
+                                force_tz(tzone = "EST") %>% as.character(),
+                        tecan_file_url = tecan_file$file_dribble %>%
+                                dribble_get_link())
+                write_csv(plates, csv_path)
+                
+                drive_update(file = csv_drive_id,
+                             media = csv_path)
+                
+                #Move Tecan file to protocol folder
+                move_drive_file(protocols(), prot_name = input$set_protocol, tecan, input)
+                #Set user file selectInput on the same file
+                update_uis(prot_name = input$set_protocol, tecan = tecan, input = input, session = session)
+                
+                #Calculate water volume to normalize and generate the csv files for hamilton then upload to drive
+                experiment$calculated$Results <- tecan_calc_water_vol(experiment$calculated$Results,
+                                                                      well_volume = input$well_volume,
+                                                                      target_concentration = input$target_concentration)
+                
+                tmp_norm_csv <- str_interp("temp/${input$set_protocol}__plate_${input$set_plate_nb}.csv")
+                experiment$calculated$Results %>%
+                        select(Sample, Normalize) %>%
+                        write.csv(file = tmp_norm_csv,
+                                  quote = TRUE,
+                                  eol = "\r\n",
+                                  row.names = FALSE)
+                browser()
+                drive_upload(media = tmp_norm_csv,
+                             path = selected_prot$hami_folder_url %>% as_id())
+                
+        }, ignoreInit = TRUE)
+        
         #On change of selected protocol, update file list from drive
         observeEvent(input$protocol, {
-                drive_url <- if (input$protocol == "New") drive_tecanURL 
-                else protocols() %>%
-                        filter(name == input$protocol) %$%
-                        folder_url
-                
+                if (input$protocol == "New")
+                        drive_url <- drive_tecanURL 
+                else 
+                        drive_url <- protocols() %>%
+                                filter(name == input$protocol) %$%
+                                folder_url
                 tecan$files <- drive_url %>%
                         googledrive::as_id() %>%
                         get_ordered_filenames_from_drive()
         }, ignoreInit = TRUE)
         
-        
+        #### DB STORAGE ####
         #Container for samples
         samples <- reactiveVal(value = NULL)
         #To prevent updating empty string notes...
+        #TODO: could use attribute??
         note_had_characters <- reactiveVal(FALSE)
         
         #This handles the sample taggings tecan file types that require it before db writing
@@ -270,32 +276,35 @@ tecan_server <- function(input, output, session, gtoken) {
                 
                 removeUI(selector = str_interp("#${ns('note_widget')}"))
                 
-                
-                #Prepare the samples tibble
+                #Prepare the samples tibble in case there's a db record...
                 if (file_record()$entry_exists) {
                         samples(file_record()$entry$samples[[1]] %>%
-                                        as_tibble())
-                        
+                                        as_tibble()
+                                )
+                # ...and in case there's none.        
                 } else {
                         if (tecan_file$type == tecan_protocols_with_db[1]) {
-                                tecan_smpls <- tecan_file$samples[-1] 
+                                samples(tecan_file$measures %>%
+                                                mutate(Key = if_else(row_number() == 1 &
+                                                                             is.null(tecan_file$user_msg),
+                                                                     "Water", 
+                                                                     ""))
+                                        )
                         }
+                        # This is for H2O2 measurement. Find the highest value, from that
+                        # determine calibration values and sample values
                         else if (tecan_file$type == tecan_protocols_with_db[2]) {
                                 # Select non-calibration samples
                                 max_idx <- tecan_file$measures$Value %>%
                                         which.max()
                                 measured <- (max_idx + 1):length(tecan_file$measures$Value)
-                                tecan_smpls <- tecan_file$samples[measured]
+                                
+                                samples(tecan_file$measures[measured, ] %>%
+                                                mutate(Key = ""))
                         } else return()
                         
                         # Initiate the 'samples' reactiveVal with those samples
-                        samples(tecan_smpls %>%
-                                         as_tibble() %>%
-                                         mutate(Key = "") %>%
-                                         rename(Sample = value))
-                        
-                        # Todo : create the db entry for the file
-                        db_create_entry(db, tecan_file, samples)
+                        db_create_entry(db, tecan_file, samples())
                 } 
                 
                 #Display the note text input
@@ -310,23 +319,26 @@ tecan_server <- function(input, output, session, gtoken) {
                 
                 control_samples <- reactiveValues()
                 
-                # for each sample, display the widget
-                walk2(samples()$Sample,samples()$Key, ~ {
-                        
-                        insertUI(selector = paste0("#", ns("widgets_bar")),
-                                 where = "beforeEnd",
-                                 ui = sample_widget_ui(id = ns(.x), .x, .y, tecan_file, registry)
-                        )
-                        
-                        control_samples[[.x]] <- callModule(module = sample_widget,
-                                                id = .x,
-                                                sample_well = .x,
-                                                sample_key = .y,
-                                                samples = samples,
-                                                tecan_file,
-                                                db,
-                                                registry)
-                })
+                # Don't diplay sample tagging for plates of an experiment / protocol
+                # TODO: actually display information about what's in the plate
+                if (is.null(tecan_file$user_msg)) 
+                        # for each sample, display the widget
+                        walk2(samples()$Sample,samples()$Key, ~ {
+                                
+                                insertUI(selector = paste0("#", ns("widgets_bar")),
+                                         where = "beforeEnd",
+                                         ui = sample_widget_ui(id = ns(.x), .x, .y, tecan_file, registry)
+                                )
+                                
+                                control_samples[[.x]] <- callModule(module = sample_widget,
+                                                                    id = .x,
+                                                                    sample_well = .x,
+                                                                    sample_key = .y,
+                                                                    samples = samples,
+                                                                    tecan_file,
+                                                                    db,
+                                                                    registry)
+                        })
                 
                 #Slowed down text input updates
                 input_note <- debounce(reactive({input$note}), 1500)
@@ -370,6 +382,17 @@ tecan_server <- function(input, output, session, gtoken) {
                 
         }, ignoreInit = TRUE)
         
+        observeEvent(experiment$protocol, {
+                
+                if (is.null(experiment$protocol)) return()
+                update_str <- str_interp('{"$set": 
+                                         {"experiment": {
+                                         "name" : "${experiment$protocol}",
+                                         "plate_nb" : "${input$set_plate_nb}"}}}')
+                mongo_update_file(db, tecan_file$file, upd_str = update_str)
+        }, ignoreInit = TRUE)
+        
+        #### DISPLAY ####
         # Tell user if it's a 260 or 600nm
         output$type <- eventReactive(experiment$raw, {
                 experiment$raw$type
@@ -391,66 +414,82 @@ tecan_server <- function(input, output, session, gtoken) {
                                        ns = ns)
                         
                 } else {
+                        # TODO: In case of DNA quantification since results are only displayed after tagging,
+                        # this could run only after tagging...OR remove the data_tagged trigger of the observer.
                         if (experiment$raw$type == "DNA Quantification") {
-                                experiment$calculated <- calc_values(experiment$raw$data,
-                                                                     absorbance,
-                                                                     path)
+                                #patch: if experiment has message
+                                if (is.null(experiment$raw$user_msg))
+                                        experiment$calculated <- calc_values(experiment$raw$data,
+                                                                             absorbance,
+                                                                             path)
+                                else experiment$calculated <- calc_values(experiment$raw$data,
+                                                                          absorbance,
+                                                                          path,
+                                                                          water_well_pos = NULL,
+                                                                          water_readings = water_readings)
                         }
-                        
-                        output$summary <- renderTable({
-                                if (!data_tagged_and_saved() && experiment$raw$type == "DNA Quantification")
-                                        return()
-                                if (experiment$raw$type == "DNA Quantification") {
-                                        experiment$calculated$Results
-                                } else {
-                                        experiment$raw$data$Batch_1$Measures
-                                }
-                        })
-                        
-                        output$hist <- renderPlot({
-                                if (!data_tagged_and_saved() && experiment$raw$type == "DNA Quantification")
-                                        return()
-                                is_DNAquant <- experiment$raw$type == "DNA Quantification"
-                                
-                                if (is_DNAquant) {
-                                        df <- experiment$calculated$Results
-                                } else {
-                                        df <- experiment$raw$data$Batch_1$Measures
-                                }
-                                
-                                ggplot(df) +
-                                        aes(x = factor(Sample, levels = Sample),
-                                            y = if (is_DNAquant) {Concentration}
-                                            else {Value},
-                                            fill = if (is_DNAquant) {Ratio > 1.7 & Ratio < 2.0}
-                                            else {Value > .2}) +
-                                        geom_bar(stat = "identity") +
-                                        theme(legend.position = c(.9,.9)) +
-                                        scale_x_discrete("Samples") + 
-                                        ylab(if_else(is_DNAquant, "Concentration", "Value")) +
-                                        scale_fill_discrete(limits = c('FALSE', 'TRUE')) +
-                                        if (is_DNAquant) {
-                                                geom_text(
-                                                        aes( y = Concentration + mean(Concentration) * 0.03),
-                                                        label = format(df$Concentration, digits = 1)
-                                                )
-                                        } else {
-                                                geom_text(
-                                                        aes( y = Value + mean(Value) * 0.03),
-                                                        label = format(df$Value, digits = 1)
-                                                )
-                                        }
-                        })
-                        
-                        output$batch <- renderTable({
-                                if (!data_tagged_and_saved() && experiment$raw$type == "DNA Quantification") return()
-                                if (experiment$raw$type == "DNA Quantification") {
-                                        return(experiment$calculated$Table)
-                                } else {
-                                        NULL
-                                }
-                        })       
+                }
+        })
+        
+        is_displayed <- reactive({
+                (data_tagged_and_saved() || !is.null(experiment$raw$user_msg)) &&
+                        experiment$raw$type == "DNA Quantification"
+        })
+        
+        output$summary <- renderTable({
+                if (is.null(experiment$raw$type)) return()
+                if (!is_displayed()) return()
+                
+                if (experiment$raw$type == "DNA Quantification") {
+                        experiment$calculated$Results
+                } else {
+                        experiment$raw$data$Batch_1$Measures
+                }
+        })
+        
+        output$hist <- renderPlot({
+                if (is.null(experiment$raw$type)) return()
+                if (!is_displayed()) return()
+                
+                is_DNAquant <- experiment$raw$type == "DNA Quantification"
+                
+                if (is_DNAquant) {
+                        df <- experiment$calculated$Results
+                } else {
+                        df <- experiment$raw$data$Batch_1$Measures
                 }
                 
+                ggplot(df) +
+                        aes(x = factor(Sample, levels = Sample),
+                            y = if (is_DNAquant) {Concentration}
+                            else {Value},
+                            fill = if (is_DNAquant) {Ratio > 1.7 & Ratio < 2.0}
+                            else {Value > .2}) +
+                        geom_bar(stat = "identity") +
+                        theme(legend.position = c(.9,.9)) +
+                        scale_x_discrete("Samples") + 
+                        ylab(if_else(is_DNAquant, "Concentration", "Value")) +
+                        scale_fill_discrete(limits = c('FALSE', 'TRUE')) +
+                        if (is_DNAquant) {
+                                geom_text(
+                                        aes( y = Concentration + mean(Concentration) * 0.03),
+                                        label = format(df$Concentration, digits = 1)
+                                )
+                        } else {
+                                geom_text(
+                                        aes( y = Value + mean(Value) * 0.03),
+                                        label = format(df$Value, digits = 1)
+                                )
+                        }
+        })
+        
+        output$batch <- renderTable({
+                if (is.null(experiment$raw$type)) return()
+                if (!is_displayed()) return()
+                if (experiment$raw$type == "DNA Quantification") {
+                        return(experiment$calculated$Table)
+                } else {
+                        NULL
+                }
         })
 }

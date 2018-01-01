@@ -44,19 +44,21 @@ protocols_get <- function(drive_folder, prot_gsheet) {
                                                                  path = drbl,
                                                                  type = "text/csv")
                         } else {
-                                
                                 plates_processed <- protocol_folder_ls %>% filter(name == temp_csv)
+                                #TODO: add same fail proof mechanims for the hamilton folder
                         }
                         
                         # Get the new folder link
-                        links <- list(drbl, plates_processed, hami_drbl) %>%
+                        links <- list(drbl, plates_processed, hami_drbl ) %>%
                                 map_chr(dribble_get_link)
+                        
+                        colID <- gsheet_colID_from_tibble(protocols, "folder_url")
                         
                         # insert folder and plates tracker url in the gsheet
                         gs_edit_cells(ss = prot_gsheet,
                                       ws = 1,
                                       input = links,
-                                      anchor = paste0("F", i + 1),
+                                      anchor = paste0(colID, i + 1),
                                       byrow = TRUE)
                         
                         #Add links to protocols
@@ -66,7 +68,7 @@ protocols_get <- function(drive_folder, prot_gsheet) {
         }
         if (update_hami_csv) {
                 tmp_path <- "temp/protocols_list.csv"
-                browser()
+                
                 protocols %>%
                         select(index, name) %>%
                         filter(name != protocols$name[1]) %>%
@@ -101,7 +103,20 @@ protocols_set_modal <- function(input, file_name, custom_msg, protocols,required
                                          selectInput(inputId = ns("set_plate_nb"),
                                                      label = "Select plate nb",
                                                      choices = "",
-                                                     multiple = FALSE)),
+                                                     multiple = FALSE),
+                                         numericInput(ns("well_volume"),
+                                                      label = "Enter well volume in ul",
+                                                      value = 50,
+                                                      min = 50,
+                                                      max = 1000,
+                                                      step = 50),
+                                         numericInput(ns("target_concentration"),
+                                                      label = "Target Concentration in ng/ul",
+                                                      value = 100,
+                                                      min = 100,
+                                                      max = 500,
+                                                      step = 100)
+                                         ),
 
                         if (!is.null(required_msg))
                                 div(tags$b(required_msg, style = "color: red;")),
@@ -115,4 +130,23 @@ protocols_set_modal <- function(input, file_name, custom_msg, protocols,required
                 ))
         
         
+}
+
+move_drive_file <- function(protocols, prot_name, tecan, input) {
+        tecan$files %>%
+                filter(id == input$file) %>%
+                drive_mv(path = protocols %>%
+                                 filter(name == prot_name) %>%
+                                 pull(folder_url) %>%
+                                 as_id())
+}
+
+update_uis <- function(prot_name, tecan, input, session) {
+        # Switch UI to the protocol where this file was moved to
+        updateSelectInput(session = session,
+                          inputId = "protocol",
+                          selected = prot_name)
+        
+        #Set whicih file to select after the files menu update
+        tecan$selected_file <- input$file
 }

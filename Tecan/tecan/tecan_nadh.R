@@ -104,7 +104,7 @@ sample_widget_ui <- function(id, sample_well, sample_key, tecan_file, registry) 
                                         inputId = ns("well_key"),
                                         label = str_interp("Sample ${sample_well}"),
                                         choices = registry$KEY  %>%
-                                                prepend(c("", "Plasmid")),
+                                                prepend(c("", "Water", "Plasmid")),
                                         selected = sample_key,
                                         multiple = FALSE)
                                 )
@@ -167,16 +167,22 @@ sample_widget <- function(input, output, session, sample_well, sample_key, sampl
 }
 
 db_create_entry <- function(db, tecan_file, samples) {
-        samples_str <- jsonlite::toJSON(samples(), dataframe = 'rows')
-        str1 <- str_interp('{"file" : "${tecan_file$file}" }')
-        str2 <- str_interp('{"$set": {
+        samples_str <- jsonlite::toJSON(samples, dataframe = 'rows')
+        #String to add the 280 data
+        if (tecan_file$type == tecan_protocols_with_db[1]) {
+                data280 <- jsonlite::toJSON(tecan_file$data$Batch_2$Measures, dataframe = "rows")
+                str280 <- str_interp(', "samples_280":${data280}')
+        } else str280 <- ''
+        
+        update_str <- str_interp('{"$set": {
                            "name" : "${tecan_file$file_dribble$name}",
                            "type": "${tecan_file$type}",
                            "note" : "",
-                           "samples":${samples_str}}}')
-        db$update(str1, str2, upsert = TRUE)
-        showNotification(ui = str_interp("Created db entry for ${tecan_file$file_dribble$name}"),
-                         duration = 3,
-                         type = "message")
+                           "samples":${samples_str}${str280}}}')
+        
+        mongo_update_file(db, tecan_file$file, update_str,
+                          notif_msg = str_interp("Created db entry for ${tecan_file$file_dribble$name}"))
 }
+
+
 

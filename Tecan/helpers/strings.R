@@ -32,3 +32,10 @@ dribble_get_link <- function(dribble) {
                 '[['(1) %>%
                 '[['("webViewLink")
 }
+
+gsheet_colID_from_tibble <- function(tbl, tbl_col) {
+        
+        stopifnot(ncol(tbl) <= 26); stopifnot(is_tibble(tbl))
+        idx <- tbl_col == colnames(tbl)
+        LETTERS[1:dim(tbl)[2]][idx]
+}

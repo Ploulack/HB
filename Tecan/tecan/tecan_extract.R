@@ -92,25 +92,25 @@ tecan_extract <- function(input_file, dribble) {
         
         list("data" = data, "type" = tecan_type(tecan), "user_msg" = tecan_custom_msg(tecan))
 }
-
-calc_values <- function(list, molar_absorbance, path_length) {
-        
+#TODO: replace order based default water well pos to plate numbering
+calc_values <- function(list, molar_absorbance, path_length, water_well_pos = 1, water_readings = NULL) {
+        browser()
         list_delta <- list %>%
                 map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%
                 #Order by Sample label (should make a function)
                 map(~arrange(.x,
-                             str_extract(Sample, "[A-Z]"),
-                             as.integer( str_extract(Sample, "\\d+")))
-                ) %>%
-        #Substract 1st well, which is water
-                map(~mutate(.x, Delta = Value - Value[1],
+                             as.integer( str_extract(Sample, "\\d+")),
+                             str_extract(Sample, "[A-Z]"))) %>%
+        #Substract water (if water's on the plate then use the water pos, if not use the value provided)
+                map(~mutate(.x, Delta = Value - ifelse(!is.null(water_well_pos) , Value[water_well_pos], water_readings[Wavelength]),
                             Concentration = Delta / (molar_absorbance * path_length)))
         
         full_tbl <- list_delta %>%
                 #Bind into single tbl
                 map_dfr(~.x) %>%
                 #Order by Sample label (should make a function)
-                arrange( str_extract(Sample, "[A-Z]")   ,as.integer( str_extract(Sample, "\\d+")))
+                arrange(as.integer(str_extract(Sample, "\\d+")), str_extract(Sample, "[A-Z]"))
+                # arrange(str_extract(Sample, "[A-Z]"), as.integer(str_extract(Sample, "\\d+")))
         
         results <- map(list_delta, pull, var = Delta) %>%
                 as_tibble() %>%
@@ -124,6 +124,9 @@ calc_values <- function(list, molar_absorbance, path_length) {
         list("Table" = full_tbl, "Results" = results)
 }
 
-
-# 
-# test["description"]
+#Calculate in ul the volume of water to add to normalize
+tecan_calc_water_vol <- function(calc_tbl, well_volume, target_concentration, multiplier = 10) {
+        calc_tbl %>%
+                mutate(Normalize = (Concentration * well_volume * 1/target_concentration  * multiplier - well_volume) %>%
+                               round(digits = 1))
+}

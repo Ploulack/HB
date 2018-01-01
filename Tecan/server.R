@@ -1,21 +1,19 @@
-library(shiny)
-suppressPackageStartupMessages(library(tidyverse))
+library(shiny); library(tidyverse)
 library(lubridate)
 library(googlesheets)
 library(stringr)
 
-
 token_name <- "hblab_token.rds"
-
-function(session, input, output) {
-        
+browser()
+function(input, output, session) {
         source("auth/google_button_server.R")
         # Display Google Auth button if no Token
         token_test <- reactive({
                 pars <- parseQueryString(session$clientData$url_search)
                 return((length(pars$code) > 0))
         })
-        output$token_exists <- reactive({token_test()})
+        output$token_exists <- reactive({
+                token_test()})
         outputOptions(output, "token_exists", suspendWhenHidden = FALSE)
         
         #Only start the Google Auth button module if no token

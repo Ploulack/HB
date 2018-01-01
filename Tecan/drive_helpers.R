@@ -20,6 +20,7 @@ get_ordered_filenames_from_drive <- function(drive_dir, type = "tecan", file_reg
         drive_ls(path = drive_dir) %>%
                 filter(name %>% str_detect(file_regex)) %>%
                 mutate(exp_date = file_date(name, type)) %>%
-                arrange(desc(exp_date)) %>%
-                head(30)
+                arrange(desc(exp_date)) 
+        # %>%
+        #         head(30)
 }

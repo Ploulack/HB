@@ -41,8 +41,7 @@ tecan_ui <- function(id) {
                              conditionalPanel(
                                      condition = paste0("output['",ns("type"),"'] == 'NADH Detection'" ),
                                      actionButton(inputId = ns("open_calibration"),
-                                                  label = "Edit Concentrations"),
-                                     tableOutput(ns("calibration"))
+                                                  label = "Edit Concentrations")
                              ),
                              conditionalPanel(
                                      condition = paste0("output['",ns("type"),"'] != 'NADH Detection'"),
@@ -58,11 +57,13 @@ tecan_ui <- function(id) {
                         conditionalPanel(
                                 condition = paste0("output['",ns("type"),"'] != 'NADH Detection'"),
                                 plotOutput(ns("hist")),
+                                tableOutput(ns("summary")),
                                 tableOutput(ns("batch"))
                         ),
                         conditionalPanel(
                                 condition = paste0("output['",ns("type"),"'] == 'NADH Detection'" ),
                                 plotOutput(ns("regression_graph")),
+                                tableOutput(ns("calibration")),
                                 tableOutput(ns("samples_predicted"))
                         )
                 )
