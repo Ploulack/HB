@@ -94,7 +94,7 @@ tecan_extract <- function(input_file, dribble) {
 }
 #TODO: replace order based default water well pos to plate numbering
 calc_values <- function(list, molar_absorbance, path_length, water_well_pos = 1, water_readings = NULL) {
-        browser()
+        
         list_delta <- list %>%
                 map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%
                 #Order by Sample label (should make a function)

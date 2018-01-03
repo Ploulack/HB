@@ -4,7 +4,7 @@ library(googlesheets)
 library(stringr)
 
 token_name <- "hblab_token.rds"
-browser()
+
 function(input, output, session) {
         source("auth/google_button_server.R")
         # Display Google Auth button if no Token

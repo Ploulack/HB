@@ -6,15 +6,15 @@ gel_server <- function(input, output, session, gtoken) {
         source("registry/registry_values.R")
         source("helpers/strings.R")
         source("gel/gel_functions.R")
-        
+
         if (!exists("registry")) {
                 registry <- registry_key_names(registry_url, registry_sheets)
         }
-        
-        
+
+
         # source("gel/parts_tagging.R")
         ns <- session$ns
-        
+
         #Get mongo db connector for gel pictures data
         source("helpers/mongo_helpers.R")
         #Only initiate mongo connexion when needed
@@ -23,7 +23,7 @@ gel_server <- function(input, output, session, gtoken) {
                 gel_db <- db_from_environment(session, collection = "gel_photos")
         }
         gel_pics <- reactiveValues(files = NULL, current_file = NULL)
-        
+
         #function to get files list
         choiceFiles <- reactive({
                 input$refresh
@@ -35,7 +35,7 @@ gel_server <- function(input, output, session, gtoken) {
                         set_names(gel_pics$files$exp_date)
                 return(res)
         })
-        
+
         #Display files list choice to user
         observeEvent(c(choiceFiles(), input$refresh), {
                 choices <- choiceFiles()
@@ -45,29 +45,29 @@ gel_server <- function(input, output, session, gtoken) {
                                 head(choices,1),
                                 input$file)
                 )
-                
+
         })
-        
+
         #Create reactive to have only the last click
         #(to prevent return to NULL of the input)
         last_click <- reactiveVal(value = NULL)
         #Store clicks with id to tie them to index later on
         clicks <- reactiveVal(as_tibble(colnames(c("x", "y","xmax", "ymax","sample", "key"))))
-        
+
         #Create reactive to have only the last selected area
         #Use one for each usage type (crop image, label image)
         crop_drag <- reactiveVal(value = NULL)
         label_drag <- reactiveVal(value = NULL)
-        
+
         observeEvent(input$drag_area, {
                 if (!base_graph()$is_cropped) {
                         crop_drag(input$drag_area)
                 } else {
                         label_drag(input$drag_area)
                 }
-                
+
         })
-        
+
         #Display modal message to user that he can't start tagging if crop view not saved
         observeEvent(c(input$click, label_drag()), {
                 #Todo: test to remove
@@ -84,7 +84,7 @@ gel_server <- function(input, output, session, gtoken) {
                                 easyClose = TRUE))
                 }
         })
-        
+
 
         #Remove buttons when: user cancels, stores the crop, or, changes file
         observeEvent(c(input$cancel_crop, coord_stored(), input$file), {
@@ -95,7 +95,7 @@ gel_server <- function(input, output, session, gtoken) {
                         removeUI( paste0("div:has(>#",ns("cancel_crop"),")"))
                 }
         })
-        
+
         #Display buttons to save the crop coordinates or cancel the crop
         observeEvent(base_graph(),{
                 if (base_graph()$is_cropped &&
@@ -111,7 +111,7 @@ gel_server <- function(input, output, session, gtoken) {
                         })
                 }
         }, ignoreNULL = TRUE)
-        
+
         #Reset drag area and remove cropped file on cancel
         observeEvent(input$cancel_crop, {
                 shiny::validate(need(!is.null(input$cancel_crop), message = FALSE))
@@ -120,22 +120,22 @@ gel_server <- function(input, output, session, gtoken) {
                         paste0("temp/", input$file, "_cropped.jpg")
                 )
         })
-        
+
         #Get db records attached to new file
         file_record <- eventReactive(c(input$store_crop, input$file), {
                 shiny::validate(need(!is.null(input$file) && input$file != wait_msg,message = FALSE))
                 mongo_file_entry(gel_db, input$file)
         })
-        
-        
+
+
         #reactive 'flag' to know when db insert has been a success
         coord_stored <- reactiveVal(FALSE)
-        
+
         #Insert crop coord in db when button pressed
         #Todo: clean with better toJson and db update methods
         observeEvent(input$store_crop, {
                 if (input$store_crop == 0) return()
-                
+
                 coord_str <- jsonlite::toJSON(crop_drag()[1:4]) %>%
                         str_replace_all(pattern = "\\[|\\]", replacement = "")
                 str <- paste0(
@@ -152,12 +152,12 @@ gel_server <- function(input, output, session, gtoken) {
                         coord_stored(TRUE)
                 } else return()
         })
-        
+
         #Download image
         ##Todo: make common function with Tecan file
         get_picture <- eventReactive(input$file, {
-                #Prevent re-download from Drive when the select files input is initialized or updated, 
-                
+                #Prevent re-download from Drive when the select files input is initialized or updated,
+
                 if (input$file %in% c(wait_msg)) return()
                 else if (input$file == "") {
                         showModal(modalDialog(
@@ -171,14 +171,14 @@ gel_server <- function(input, output, session, gtoken) {
                         if (!file.exists(file_name)) {
                                 drive_download(file = gel_pics$files %>% filter(id == input$file),
                                                path = file_name,
-                                               overwrite = TRUE)        
+                                               overwrite = TRUE)
                         }
                         return(file_name)
                 }
         })
 
         img <- reactiveVal(value = NULL)
-        
+
         #Rrepare the background picture then init graph
         base_graph <- reactive({
                 input$picture_quality
@@ -212,7 +212,7 @@ gel_server <- function(input, output, session, gtoken) {
                                 "is_cropped" = TRUE)
                 }
         })
-        
+
         output$gel <- renderPlot({
                 if (!base_graph()$is_cropped) {
                         base_graph()$graph
@@ -247,17 +247,17 @@ gel_server <- function(input, output, session, gtoken) {
                                                                 "")),
                                          size = 5, angle = 80, hjust = 0, vjust = 0,
                                          color = "white", fontface = "bold"
-                                ) 
-                        
+                                )
+
                 }
         })
-        
+
         #Code for the remove button logic
         source("gel/gel_sidebar_lane_remove.R")
-        
+
         #To store the last removed label-sample
         last_del <- reactiveVal(NULL)
-        
+
         #Diplay modal dialog for the user to tag a sample after a double click
         tag_sample_modal <- function(required_msg = NULL) {
                 showModal(
@@ -286,22 +286,22 @@ gel_server <- function(input, output, session, gtoken) {
                         )
                 )
         }
-        
+
         #Open modal dialog on double click or drag
         observeEvent(c(input$click,label_drag()), {
                 if (!base_graph()$is_cropped) return()
                 if (!(coord_stored() || file_record()$entry_exists)) return()
                 tag_sample_modal()
         },ignoreInit = TRUE, ignoreNULL = TRUE)
-        
+
         observeEvent(input$ok, {
                 is_non_part <- input$sample_type %in% non_part_types
-                
+
                 if ((input$part_key == "" && !is_non_part ) || (input$non_part_key == "" && is_non_part)) {
                         tag_sample_modal("Need to complete")
                 } else {
                         removeModal()
-                        
+
                         sample_label <- first_unused(clicks()$sample)
                         sample_key <- if_else(is_non_part, input$non_part_key, input$part_key)
                         length <- ifelse(is_non_part,
@@ -309,7 +309,7 @@ gel_server <- function(input, output, session, gtoken) {
                                          registry %>%
                                                  filter(KEY == input$part_key) %>%
                                                  pull(Length))
-                        
+
                         if (is.null(label_drag())) {
                                 label_coords <- list("x" = last_click()$x,
                                                      "y" = last_click()$y,
@@ -319,7 +319,7 @@ gel_server <- function(input, output, session, gtoken) {
                                 label_coords <- list("x" = label_drag()$xmin,
                                                      "y" = label_drag()$ymin,
                                                      "xmax" = label_drag()$xmax,
-                                                     "ymax" = label_drag()$ymax) 
+                                                     "ymax" = label_drag()$ymax)
                         }
                         new_sample <- list("x" = label_coords$x,
                                 "y" = label_coords$y,
@@ -330,14 +330,14 @@ gel_server <- function(input, output, session, gtoken) {
                                 "type" = input$sample_type,
                                 "length" = length)
                         clicks(clicks() %>% bind_rows(new_sample))
-                        
+
                         # Upload to gel_db the label coordinates
                         save_sample(db = gel_db,
                                     sample = new_sample,
                                     file_id = input$file,
                                     file_name = gel_pics$current_file,
                                     sample_label = sample_label)
-                        
+
                         display_remove_button(ui_id = ns(sample_label),
                                               sample_key = sample_key,
                                               sample_label = sample_label,
@@ -356,35 +356,35 @@ gel_server <- function(input, output, session, gtoken) {
                         file_name = gel_pics$current_file,
                         sample_label = last_del())
         }, ignoreInit = TRUE)
-        
-        
+
+
         #On picture change:
         #Reset drag area, click,  db insert flag, labels / clicks tibble
         observeEvent(input$file, {
                 if (is.null(input$file) || input$file == wait_msg) return()
-                
+
                 #Resetting
                 crop_drag(NULL); last_click(NULL); coord_stored(FALSE); last_del(NULL)
-                
+
                 #initializing...
                 gel_pics$current_file <- gel_pics$files %>%
                         filter(id == input$file) %>%
                         pull(name)
-                
+
                 if (file_record()$entry_exists &&
                    !is.null(file_record()$entry$labels[[1]]) &&
                    !length(file_record()$entry$labels[[1]]) == 0 &&
                     nrow(file_record()$entry$labels[[1]]) != 0) {
-                        
+
                         labels_tbl <- file_record()$entry$labels[[1]] %>% as_tibble()
-                        
+
                         #for old entries that did not have rects labels
                         if (!"xmax" %in% names(labels_tbl)) {
                                 labels_tbl <- labels_tbl %>% mutate(xmax = NA, ymax = NA)
                         }
-                        
+
                         clicks(labels_tbl)
-                        
+
                         for (i in 1:nrow(clicks())) {
                                 smpl <- clicks()[i,]
                                 display_remove_button(ui_id = ns(smpl$sample),
@@ -392,15 +392,15 @@ gel_server <- function(input, output, session, gtoken) {
                                                       sample_label = smpl$sample,
                                                       clicks = clicks,
                                                       last_del = last_del,
-                                                      current_file = input$file, 
+                                                      current_file = input$file,
                                                       session = session)
-                                
+
                         }
                 } else {
                         clicks(as_tibble(colnames(c("x", "y","xmax","ymax","sample", "key", "type", "length"))))
                 }
         }, priority = 0)
-        
+
         #Remove source & cropped pictures on stop or session end
         shiny::onStop(
                 fun = function() {

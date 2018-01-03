@@ -13,14 +13,17 @@ file_date <- function(file_name, type = "tecan") {
         }
 }
 
-
-get_ordered_filenames_from_drive <- function(drive_dir, type = "tecan", file_regex = ".xml$") {
+#TODO: Add tests !!!
+get_ordered_filenames_from_drive <- function(drive_dir, type = "tecan", filename_pattern = ".xml$") {
         #TODO: Check year and folder
-        
-        drive_ls(path = drive_dir) %>%
-                filter(name %>% str_detect(file_regex)) %>%
+        if (type == "google_photo_app") {
+                filename_pattern <- ".jpg$"
+                }
+        drive_ls(path = drive_dir, pattern = filename_pattern) %>%
+                #Filter out non target files
+                #filter(name %>% str_detect(file_regex)) %>%
                 mutate(exp_date = file_date(name, type)) %>%
-                arrange(desc(exp_date)) 
+                arrange(desc(exp_date))
         # %>%
         #         head(30)
 }

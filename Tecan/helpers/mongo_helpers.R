@@ -8,7 +8,7 @@ mongo_file_entry <- function(db, file) {
                 "entry" = entry
         ))
 }
-
+#TODO: Add confirmation that db update worked fine
 mongo_update_file <- function(db, file, upd_str, notif_msg = NULL) {
         str1 <- str_interp('{"file" : "${file}" }')
         db$update(str1, upd_str, upsert = TRUE)

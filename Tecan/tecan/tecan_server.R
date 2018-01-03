@@ -241,7 +241,7 @@ tecan_server <- function(input, output, session, gtoken) {
                                   quote = TRUE,
                                   eol = "\r\n",
                                   row.names = FALSE)
-                browser()
+                
                 drive_upload(media = tmp_norm_csv,
                              path = selected_prot$hami_folder_url %>% as_id())
                 
@@ -281,7 +281,16 @@ tecan_server <- function(input, output, session, gtoken) {
                         samples(file_record()$entry$samples[[1]] %>%
                                         as_tibble()
                                 )
-                # ...and in case there's none.        
+                        browser()
+                        #TODO: If value were not stored, update the db entry
+                # ...and in case there's no db record.
+                # Answer:
+                # test = If Col name value absent
+                # Add the first row tecan_file$measures, give it Key 'Water'
+                # Add the value column
+                # test type and if DNA quant:
+                # duplicate all except value for the Samples_280 : take values from tecan_file$data$Batch_2$Measures
+                # after testing that tecan_file$data$Batch_2$Wavelength == 280
                 } else {
                         if (tecan_file$type == tecan_protocols_with_db[1]) {
                                 samples(tecan_file$measures %>%
@@ -382,8 +391,9 @@ tecan_server <- function(input, output, session, gtoken) {
                 
         }, ignoreInit = TRUE)
         
+        # When Tecan file belongs to an experiment / protocol
+        # add experiment and plate nb to the db entry
         observeEvent(experiment$protocol, {
-                
                 if (is.null(experiment$protocol)) return()
                 update_str <- str_interp('{"$set": 
                                          {"experiment": {
