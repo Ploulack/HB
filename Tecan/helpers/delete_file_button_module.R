@@ -1,13 +1,13 @@
 delete_exp_files_ui <- function(id) {
         ns <- NS(id)
-        
+
         actionButton(inputId = ns("remove_files_modal"),
                      label = "Remove File")
 }
 
 delete_exp_files <- function(input, output, session, tecan_file, db, files_list, removed_files) {
         if (is.null(tecan_file) || is.null(files_list)) return()
-        
+
         ns <- session$ns
         observeEvent(input$remove_files_modal, {
                 showModal(modalDialog(
@@ -19,7 +19,7 @@ delete_exp_files <- function(input, output, session, tecan_file, db, files_list,
                         )
                 ))
         })
-        
+
         observeEvent(input$remove_file, {
                 removeModal()
                 # Remove file
@@ -28,13 +28,13 @@ delete_exp_files <- function(input, output, session, tecan_file, db, files_list,
 
                 #Remove db entry
                 remove_log <- db$remove(paste0('{"file" : "',tecan_file$file_dribble$id,'"}'), just_one = TRUE)
-                if (remove_log) {
+                if (remove_log$modifiedCount == 1) {
                         showNotification(ui = str_interp("Removed entry for file ${tecan_file$file_dribble$name}") ,
                                          duration = 3,
                                          type = "message")
                 }
                 # Update choices list
                 removed_files(removed_files() %>% append(tecan_file$file_dribble$id))
-                
+
         })
 }

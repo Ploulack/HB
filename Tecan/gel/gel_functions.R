@@ -2,31 +2,31 @@ save_delete <- function(is_saving, db, sample = NULL, file_id, file_name, sample
         str1 <- paste0('{"file" : "', file_id,'"}')
         sample_str <-  jsonlite::toJSON(sample,
                 auto_unbox = TRUE)
-        
+
         if (is_saving) {
                 str2 <- paste0(
-                        '{"$addToSet" : 
+                        '{"$addToSet" :
                         {"labels" : ',sample_str,'}
                         }')
                 update_log <- db$update(str1,str2)
-                
-                if (update_log) {
+
+                if (update_log$modifiedCount == 1) {
                         showNotification(ui = str_interp("Updated file ${file_name} with sample ${sample_label}.") ,
                                 duration = 3,
                                 type = "message")
-                }        
+                }
         } else {
                 str2 <- paste0(
-                        '{"$pull" : 
+                        '{"$pull" :
                         {"labels" : {"sample" : "',sample_label,'"}}
                         }')
                 update_log <- db$update(str1,str2)
-                if (update_log) {
+                if (update_log$modifiedCount == 1) {
                         showNotification(ui = str_interp("Updated file ${file_name} to remove sample ${sample_label}.") ,
                                 duration = 3,
                                 type = "message")
                 }
-                
+
         }
 }
 
@@ -40,7 +40,7 @@ delete_sample <- function(...) {
 #TInitialize gggplot graph witih picture with correct aspect ratio
 init_graph <- function(path) {
         img <- readJPEG(source = path, native = TRUE)
-        img_grob <- rasterGrob(img, width=unit(1,"npc"), height=unit(1,"npc"), interpolate = FALSE)
+        img_grob <- rasterGrob(img, width = unit(1,"npc"), height = unit(1,"npc"), interpolate = FALSE)
         graph <- ggplot() +
                 scale_x_continuous(limits = c(0,1),name = "", expand = c(0,0)) +
                 scale_y_continuous(limits = c(0,1), name = "", expand = c(0,0)) +
@@ -64,7 +64,7 @@ display_remove_button <- function(ui_id, sample_key, sample_label, clicks, last_
         insertUI(selector = paste0("#", ns("_bar")),
                  where = "afterEnd",
                  ui = sample_ui(id = ui_id, sample_key = sample_key, sample_label))
-        
+
         #Add logic attached to new sample's button
         callModule(module =  sample_server,
                    id = sample_label,

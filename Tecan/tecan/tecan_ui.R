@@ -7,7 +7,7 @@ tecan_ui <- function(id) {
                              #Conditional to only display two parameter inputs for relevant file type
                              conditionalPanel(
                                      # condition = paste0("output['",ns("type"),"'] == 'DNA Quantification'" ),
-                                     condition = paste0("output.type == 'DNA Quantification'" ),
+                                     condition = "output.type == 'DNA Quantification'",
                                      ns = ns,
                                      fluidRow(
                                              column(4,textInput(ns("absorbance"),
@@ -44,7 +44,7 @@ tecan_ui <- function(id) {
                              tags$hr(),
                              conditionalPanel(
                                      # condition = paste0("output['",ns("type"),"'] == 'NADH Detection'" ),
-                                     condition = paste0("output.type == 'NADH Detection'" ),
+                                     condition = "output.type == 'NADH Detection'",
                                      ns = ns,
                                      actionButton(inputId = ns("open_calibration"),
                                                   label = "Edit Concentrations")
@@ -63,7 +63,7 @@ tecan_ui <- function(id) {
                                           tags$hr())),
                         conditionalPanel(
                                 # condition = paste0("output['",ns("type"),"'] != 'NADH Detection'"),
-                                condition = paste0("output.type != 'NADH Detection'" ),
+                                condition = "output.type != 'NADH Detection'",
                                 ns = ns,
                                 plotOutput(ns("hist")),
                                 tableOutput(ns("summary")),
