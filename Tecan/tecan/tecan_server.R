@@ -6,8 +6,10 @@ tecan_server <- function(input, output, session, gtoken) {
         source("registry/registry_helpers.R"); source("registry/registry_values.R")
         source("helpers/strings.R")
         ns <- session$ns
+        tecan_progress <- Progress$new()
 
         #TODO: Try Promises on this
+        tecan_progress$inc(.1, detail = "Accessing registry.")
         registry <- registry_key_names(registry_url, registry_sheets)
 
         #Only initiate mongo connexion when needed
@@ -17,6 +19,7 @@ tecan_server <- function(input, output, session, gtoken) {
         }
         #build the protocol tibble from the spread sheet
         if (!exists("protocols")) {
+                tecan_progress$inc(.1, detail = "Accessing experiments.")
                 source("protocols/protocols_functions.R")
                 prot_gsheet <- gs_url(protocols_sheet)
                 protocols <- reactiveVal(protocols_get(drive_tecanURL, prot_gsheet))
@@ -37,7 +40,7 @@ tecan_server <- function(input, output, session, gtoken) {
         #Container for ordered drive folder file names
         tecan <- reactiveValues(files = drive_tecanURL %>%
                                         as_id() %>%
-                                        get_ordered_filenames_from_drive(),
+                                        get_ordered_filenames_from_drive(progress = tecan_progress),
                                 selected_file = NULL,
                                 selected_protocol = NULL)
         removed_files <- reactiveVal(NULL)
@@ -62,19 +65,20 @@ tecan_server <- function(input, output, session, gtoken) {
                                                     else tecan$selected_file,
                                                     input$file))
                 tecan$selected_file <- NULL
+                if (!is.null(choices)) tecan_progress$close()
         })
 
         #Create and fill the tecan_file all inclusive reactive container
         tecan_file <- reactiveValues()
-        observeEvent(input$go_file, {
+        observeEvent(experiment$raw, {
                 tecan_file$file <- input$file
                 tecan_file$file_dribble <-  tecan$files %>% filter(id == input$file)
-                tecan_file$samples = experiment$raw$data$Batch_1$Measures$Sample
-                tecan_file$measures = experiment$raw$data$Batch_1$Measures
-                tecan_file$type = experiment$raw$type
-                tecan_file$user_msg = experiment$raw$user_msg
-                tecan_file$data = experiment$raw$data
-        })
+                tecan_file$samples <-  experiment$raw$data$Batch_1$Measures$Sample
+                tecan_file$measures <-  experiment$raw$data$Batch_1$Measures
+                tecan_file$type <-  experiment$raw$type
+                tecan_file$user_msg <- experiment$raw$user_msg
+                tecan_file$data <-  experiment$raw$data
+        }, priority = 1)
 
         #A switch to keep track of db inserts
         data_tagged_and_saved <- reactiveVal(value = FALSE)
@@ -96,33 +100,26 @@ tecan_server <- function(input, output, session, gtoken) {
                                 title = "No File",
                                 paste0("There's no files in specified Google Drive folder: ",
                                        "/HB/Tecan")
-                        )
-                        )
+                        ))
                 } else {
                         print(paste0("Extracting file : ", input$file))
                         experiment$raw <- tecan_extract(input$file, tecan$files)
                         data_tagged_and_saved(FALSE)
                 }
-        }, priority = 1)
+        }, priority = 2)
 
         #Get db records attached to new file
         file_record <- eventReactive(input$go_file, {
-                shiny::validate(need(!is.null(tecan_file$type),
+                shiny::validate(need(!is.null(experiment$raw$type),
                                      message = FALSE))
 
                 #Display db ui only if File is not kinetic...
-                if (tecan_file$type %in% tecan_protocols_with_db) {
-                        return(mongo_file_entry(db, tecan_file$file))
+                if (experiment$raw$type %in% tecan_protocols_with_db) {
+                        return(mongo_file_entry(db, input$file))
                 } else {
                         return(list("entry_exists" = FALSE))
                 }
         })
-
-        #Temporary code to treat all tecan files and add back values to them
-        # observeEvent(file_record(), {
-        #
-        # })
-
 
         #### PROTOCOLS ####
         #On first opening, move files to their appropriate folders
@@ -286,13 +283,20 @@ tecan_server <- function(input, output, session, gtoken) {
                         # = check that values are correctly 'kept' with existing app udpates.
                         # TODO: eventually remove this code once all files have been processed...
                         if (!"Value" %in% (samples() %>% colnames())) {
-                                temp_tbl <- samples() %>%
-                                        add_row(Sample = tecan_file$measures$Sample[1], Key = "Water", .before = 1) %>%
-                                        left_join(tecan_file$measures, by = "Sample") %>%
+                                measures <- experiment$raw$data$Batch_1$Measures
+                                temp_tbl <- samples()
+                                #Check that the water samples has already been added or not
+                                if (!measures$Sample[1] %in% temp_tbl$Sample) {
+                                        add_row(temp_tbl, Sample = measures$Sample[1], Key = "Water", .before = 1)
+                                }
+                                #Add the values to the tibble
+                                temp_tbl <- temp_tbl %>%
+                                        left_join(measures, by = "Sample") %>%
                                         select(Sample, Value, Key)
                                 samples(temp_tbl)
                                 db_update_entry(db, tecan_file, samples(),
-                                                notif_msg = str_interp("Added Values to db entry for ${tecan_file$file_dribble$name}"))
+                                                notif_msg = str_interp(
+                                                        "Added Values to db entry for ${tecan_file$file_dribble$name}"))
                         }
                 } else {
                         if (tecan_file$type == tecan_protocols_with_db[1]) {
@@ -338,20 +342,26 @@ tecan_server <- function(input, output, session, gtoken) {
                      tecan_file$user_msg == "")
                         # for each sample, display the widget
                         walk2(samples()$Sample,samples()$Key, ~ {
-
-                                insertUI(selector = paste0("#", ns("widgets_bar")),
-                                         where = "beforeEnd",
-                                         ui = sample_widget_ui(id = ns(.x), .x, .y, tecan_file, registry)
-                                )
+                                # removeUI(selector = paste0("#", ns(.x)))
 
                                 control_samples[[.x]] <- callModule(module = sample_widget,
-                                                                    id = .x,
+                                                                    id = paste0(input$file, "-", .x),
                                                                     sample_well = .x,
                                                                     sample_key = .y,
                                                                     samples = samples,
                                                                     tecan_file,
                                                                     db,
-                                                                    registry)
+                                                                    registry,
+                                                                    go_file = reactive(input$go_file))
+
+                                insertUI(selector = paste0("#", ns("widgets_bar")),
+                                         where = "beforeEnd",
+                                         ui = sample_widget_ui(id = ns(paste0(input$file, "-", .x)),
+                                                               .x,
+                                                               .y,
+                                                               tecan_file,
+                                                               registry)
+                                )
                         })
 
                 #Slowed down text input updates
@@ -380,19 +390,24 @@ tecan_server <- function(input, output, session, gtoken) {
                 }, ignoreInit = TRUE)
 
                 #Gather the user entered keys for each sample
-                key_inputs <- reactive({
-                        map_chr(samples()$Sample, ~ {
-                                if (is.null(control_samples[[.x]]) ||
-                                    is.null(control_samples[[.x]]())
-                                    ) return("")
-                                else return(control_samples[[.x]]())
-                                })
-                })
+                # key_inputs <- reactive({
+                #         map_chr(samples()$Sample, ~ {
+                #                 if (is.null(control_samples[[.x]]) ||
+                #                     is.null(control_samples[[.x]]())
+                #                     ) return("")
+                #                 else return(control_samples[[.x]]())
+                #                 })
+                # })
 
-                observeEvent(key_inputs(), {
-                        if (any(key_inputs() == "")) data_tagged_and_saved(FALSE)
+                observeEvent(samples(), {
+                        if (any(samples()$Key == "")) data_tagged_and_saved(FALSE)
                         else data_tagged_and_saved(TRUE)
                 })
+
+                # observeEvent(key_inputs(), {
+                #         if (any(key_inputs() == "")) data_tagged_and_saved(FALSE)
+                #         else data_tagged_and_saved(TRUE)
+                # })
 
         }, ignoreInit = TRUE)
 
@@ -445,7 +460,7 @@ tecan_server <- function(input, output, session, gtoken) {
                         }
                 }
         })
-
+        #A centralize display switch for the plot and tables
         is_displayed <- reactive({
                 if (experiment$raw$type == tecan_protocols[1] %>%
                                             names()) return(TRUE)

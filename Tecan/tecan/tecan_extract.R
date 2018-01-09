@@ -15,9 +15,9 @@ tecan_custom_msg <- function(tecan) {
                 pluck(1) %>%
                 xml_contents() %>%
                 pluck(6)}
-        
+
         custom <- safely(custom_access)()
-        
+
         if (is.null(custom$result)) {
                 print("No custom msg in file")
                 custom$result
@@ -36,7 +36,7 @@ tecan_type <- function(xml_file) {
                 keep(~.x["Name"] %in% c("Wavelength", "Emission Wavelength")) %>%
                 map_chr("Value") %>%
                 purrr::pluck(1)
-        
+
         if (type_wavelength %in% tecan_protocols) {
                 names(tecan_protocols[tecan_protocols == type_wavelength])
         } else {
@@ -63,18 +63,18 @@ tecan_extract <- function(input_file, dribble) {
         #Todo: find the input_file in the dribble
         tecan <- dl_tecan_xml(dribble %>% filter(id == input_file), folder)
 
-        #Get the Data which is in the Elements "Section", 
-        
+        #Get the Data which is in the Elements "Section",
+
         data <- map(xml_find_all(tecan, "Section"), function(x) {
-                
+
                 nodes <- xml_find_all(x,"Data") %>%
                         xml_find_all("Well")
-                
+
                 wavelength <- xml_find_all(x,"Parameters/Parameter") %>%
                         xml_attrs() %>%
                         keep(~.x["Name"] %in% c("Wavelength", "Emission Wavelength")) %>%
                         map_chr("Value")
-                
+
                 list(Measures = data_frame(Sample = nodes %>% xml_attr("Pos"),
                                            Value = nodes %>%
                                                    xml_children() %>%
@@ -83,35 +83,44 @@ tecan_extract <- function(input_file, dribble) {
                 ),
                 "Wavelength" = wavelength)
         }) %>% set_names(nm = paste0("Batch_", seq_along(.)))
-        
+
         if (nrow(data$Batch_1$Measures) == 0 || length(data$Batch_1$Wavelength) == 0) {
                 showNotification(ui = "Unknown file structure",
                         type = "warning")
                 return()
         }
-        
+
         list("data" = data, "type" = tecan_type(tecan), "user_msg" = tecan_custom_msg(tecan))
 }
 #TODO: replace order based default water well pos to plate numbering
 calc_values <- function(list, molar_absorbance, path_length, water_well_pos = 1, water_readings = NULL) {
-        
+
         list_delta <- list %>%
                 map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%
-                #Order by Sample label (should make a function)
-                map(~arrange(.x,
-                             as.integer( str_extract(Sample, "\\d+")),
-                             str_extract(Sample, "[A-Z]"))) %>%
+                # Order by Sample label (should make a function)
+                # map(~arrange(.x,
+                #              str_extract(Sample, "[A-Z]")),
+                #              as.integer( str_extract(Sample, "\\d+"))
+                #     ) %>%
         #Substract water (if water's on the plate then use the water pos, if not use the value provided)
-                map(~mutate(.x, Delta = Value - ifelse(!is.null(water_well_pos) , Value[water_well_pos], water_readings[Wavelength]),
-                            Concentration = Delta / (molar_absorbance * path_length)))
-        
+                map(~mutate(.x,
+                            Delta = Value - ifelse(!is.null(water_well_pos),
+                                                   Value[water_well_pos],
+                                                   water_readings[Wavelength]),
+                            Concentration = Delta / (molar_absorbance * path_length),
+                            Index = row_number()))
+
         full_tbl <- list_delta %>%
                 #Bind into single tbl
                 map_dfr(~.x) %>%
                 #Order by Sample label (should make a function)
-                arrange(as.integer(str_extract(Sample, "\\d+")), str_extract(Sample, "[A-Z]"))
+                arrange(Index
+                        # str_extract(Sample, "[A-Z]"),
+                        # as.integer(str_extract(Sample, "\\d+"))
+                        ) %>%
+                select(-Index)
                 # arrange(str_extract(Sample, "[A-Z]"), as.integer(str_extract(Sample, "\\d+")))
-        
+
         results <- map(list_delta, pull, var = Delta) %>%
                 as_tibble() %>%
                 mutate(Sample = filter(full_tbl, Wavelength == 260) %>%
@@ -120,7 +129,7 @@ calc_values <- function(list, molar_absorbance, path_length, water_well_pos = 1,
                        Concentration = filter(full_tbl, Wavelength == 260) %>%
                                pull(var = Concentration)) %>%
                 select(-starts_with("Batch"))
-        
+
         list("Table" = full_tbl, "Results" = results)
 }
 

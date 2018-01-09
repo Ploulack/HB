@@ -1,7 +1,6 @@
 source("tecan/tecan_values.R")
 
 pop_calibration_values <- function(calibration, required_msg = NULL, ns) {
-
         showModal(
                 modalDialog(
                         fluidRow(
@@ -121,24 +120,31 @@ sample_widget_ui <- function(id, sample_well, sample_key, tecan_file, registry) 
         }
 }
 
-sample_widget <- function(input, output, session, sample_well, sample_key, samples, tecan_file, db, registry) {
+sample_widget <- function(input, output, session, sample_well, sample_key, samples, tecan_file, db, registry, go_file) {
         ns <- session$ns
 
         # Slow text input value update
         reactive_key <- reactive({input$well_key})
         delay <- ifelse(tecan_file$type == tecan_protocols_with_db[2], 1500, 0)
         input_key <- debounce(reactive_key, delay)
+        # input_key <- reactive({input$well_key})
+
+
 
         observeEvent(input_key(), {
                 if (is.null(input_key()) || input_key() == "") return()
-
-                if (input_key() != sample_key) {
+                if (input_key() != samples()$Key[samples()$Sample == sample_well]) {
                         #Update db entry
                         str1 <- str_interp('{ "file" : "${tecan_file$file}", "samples.Sample" : "${sample_well}"}')
                         str2 <- str_interp('{"$set" : {"samples.$.Key" : "${input_key()}"}}')
                         upd_check <- db$update(str1, str2)
-                        if (upd_check$matchedCount == 1) {
+                        if (upd_check$modifiedCount == 1) {
                                 disp_msg <- str_interp("Updated ${sample_well} with ${input_key()}")
+
+                                #Update samples to reflect the db chnage
+                                temp_tbl <- samples()
+                                temp_tbl$Key[temp_tbl$Sample == sample_well] <- input_key()
+                                samples(temp_tbl)
                         } else {
                                 disp_msg <- str_interp("Something went wrong")
                                 warning("db wasn't modified for some reason. Plz investigate")
@@ -160,10 +166,11 @@ sample_widget <- function(input, output, session, sample_well, sample_key, sampl
                         )
         })
 
-        observeEvent(tecan_file$file, {
+        observeEvent(go_file(), {
+                removeUI(selector = paste0("#", ns("well_key")))
                 removeUI(selector = paste0("#", ns("widget")))
                 removeUI(selector = paste0("#", ns("js_id")))
-        }, ignoreInit = TRUE, priority = 1)
+        }, ignoreInit = TRUE, priority = 10)
 
         return(input_key)
 

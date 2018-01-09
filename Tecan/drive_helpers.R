@@ -14,7 +14,11 @@ file_date <- function(file_name, type = "tecan") {
 }
 
 #TODO: Add tests !!!
-get_ordered_filenames_from_drive <- function(drive_dir, type = "tecan", filename_pattern = ".xml$") {
+get_ordered_filenames_from_drive <- function(drive_dir,
+                                             type = "tecan",
+                                             filename_pattern = ".xml$",
+                                             progress = NULL) {
+        if (!is.null(progress)) progress$inc(.1, detail = "Getting file names")
         #TODO: Check year and folder
         if (type == "google_photo_app") {
                 filename_pattern <- ".jpg$"
