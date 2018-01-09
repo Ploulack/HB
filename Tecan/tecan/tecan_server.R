@@ -4,9 +4,12 @@ tecan_server <- function(input, output, session, gtoken) {
         source("drive_helpers.R"); source("helpers/delete_file_button_module.R")
         source("helpers/mongo_helpers.R"); source("tecan/tecan_nadh.R")
         source("registry/registry_helpers.R"); source("registry/registry_values.R")
-        source("helpers/strings.R")
+        source("helpers/strings.R"); source("helpers/general.R")
         ns <- session$ns
         tecan_progress <- Progress$new()
+
+        drive_tecanURL <- {if (is_dev_server(session)) tecan_dev_drive_URL
+                else tecan_prod_drive_URL}
 
         #TODO: Try Promises on this
         tecan_progress$inc(.1, detail = "Accessing registry.")
@@ -21,8 +24,9 @@ tecan_server <- function(input, output, session, gtoken) {
         if (!exists("protocols")) {
                 tecan_progress$inc(.1, detail = "Accessing experiments.")
                 source("protocols/protocols_functions.R")
-                prot_gsheet <- gs_url(protocols_sheet)
-                protocols <- reactiveVal(protocols_get(drive_tecanURL, prot_gsheet))
+                prot_gsheet <- {if (is_dev_server(session)) gs_url(protocols_sheet_dev)
+                        else gs_url(protocols_sheet_prod)}
+                protocols <- reactiveVal(protocols_get(drive_tecanURL, prot_gsheet, session = session))
         }
 
         # Update the Protocol select input
@@ -127,7 +131,7 @@ tecan_server <- function(input, output, session, gtoken) {
                 if (input$protocol != "New") return()
                 if (is.null(experiment$raw$user_msg) || str_length(experiment$raw$user_msg) == 0) {
                         move_drive_file(protocols(), prot_name = "Unitary", tecan, input)
-                        update_uis("Unitary", tecan = tecan, input = input, session = session)
+                        update_uis("Unitary", tecan = tecan, file_id = input$file, session = session)
                 } else {
                         #If the Tecan file includes a custom msg popup choice to the user to do the matching
                         protocols_set_modal(input = input,
@@ -223,7 +227,7 @@ tecan_server <- function(input, output, session, gtoken) {
                 #Move Tecan file to protocol folder
                 move_drive_file(protocols(), prot_name = input$set_protocol, tecan, input)
                 #Set user file selectInput on the same file
-                update_uis(prot_name = input$set_protocol, tecan = tecan, input = input, session = session)
+                update_uis(prot_name = input$set_protocol, tecan = tecan, file_id = input$file, session = session)
 
                 #Calculate water volume to normalize and generate the csv files for hamilton then upload to drive
                 experiment$calculated$Results <- tecan_calc_water_vol(experiment$calculated$Results,

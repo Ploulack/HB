@@ -45,13 +45,15 @@ tecan_type <- function(xml_file) {
 }
 
 
-dl_tecan_xml <- function(dribble, folder) {
+dl_tecan_xml <- function(file_id, folder) {
         library(xml2)
         if (!dir.exists(folder)) {
                 dir.create(folder)
         }
-        local_ <- paste0(folder,dribble$name)
-        drive_download(dribble, path = local_, overwrite = TRUE)
+        # local_ <- paste0(folder,dribble$name)
+        # drive_download(dribble, path = local_, overwrite = TRUE)
+        local_ <- paste0(folder,file_id)
+        drive_download(as_id(file_id), path = local_, overwrite = TRUE)
         tecan_xml <- read_xml(local_)
         file.remove(local_)
         tecan_xml
@@ -61,10 +63,10 @@ dl_tecan_xml <- function(dribble, folder) {
 tecan_extract <- function(input_file, dribble) {
         folder <- "temp/"
         #Todo: find the input_file in the dribble
-        tecan <- dl_tecan_xml(dribble %>% filter(id == input_file), folder)
+        # tecan <- dl_tecan_xml(dribble %>% filter(id == input_file), folder)
+        tecan <- dl_tecan_xml(input_file, folder)
 
         #Get the Data which is in the Elements "Section",
-
         data <- map(xml_find_all(tecan, "Section"), function(x) {
 
                 nodes <- xml_find_all(x,"Data") %>%

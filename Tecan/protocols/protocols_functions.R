@@ -1,41 +1,44 @@
 library(purrr)
 source("protocols/protocols_values.R"); source("helpers/strings.R")
+source("helpers/general.R")
 
-protocols_get <- function(drive_folder, prot_gsheet) {
+protocols_get <- function(drive_folder, prot_gsheet, session) {
         #Trigger variable to update the csv in the Google Sync folder for hami methods
         update_hami_csv <- FALSE
-        
+
         protocols <- prot_gsheet %>%
                 gs_read() %>%
                 mutate(date_finished = lubridate::dmy(date_finished)) %>%
                 filter(is.na(date_finished) | date_finished > Sys.Date()) %>%
                 mutate(index = 1:n())
-        
-        
+
+
         #Create directory and add directory link to spreadsheet if a protocol doesn't have its own
         for (i in (1:nrow(protocols))) {
-                
+
                 prot_row <- protocols[i, ]
+                #TODO: Add another condition like the name is not empty
                 if (is.na(prot_row$folder_url)) {
                         update_hami_csv <- TRUE
                         #Create the drive directory
                         # First check if the directory doesn't already exist
                         tecan_folder_ls <- drive_ls(as_id(drive_folder))
                         if (!prot_row$name %in% (tecan_folder_ls %>% '[['("name"))) {
-                                drbl <- drive_mkdir(name = prot_row$name, 
+                                drbl <- drive_mkdir(name = prot_row$name,
                                                     parent = as_id(drive_folder))
                                 hami_drbl <- drive_mkdir(name = prot_row$name,
-                                                         parent = as_id(protocols_hami_folder))
+                                                         parent = as_id(if (is_dev_server(session)) protocols_hami_folder_dev
+                                                                        else protocols_hami_folder_prod))
                         }
-                                
+
                         else drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
-                        
+
                         #Create the plates index
                         stopifnot(is.integer(prot_row$total_plates))
                         temp_csv <- str_interp("${prot_row$name} plates processed date.csv")
                         path_temp_csv <- paste0("temp/",temp_csv)
                         protocol_folder_ls <- drive_ls(drbl)
-                        
+
                         if (!temp_csv %in% (protocol_folder_ls %$% name)) {
                                 tibble(processed_date = rep("unprocessed", prot_row$total_plates),
                                        tecan_file_url = rep(NA, prot_row$total_plates)) %>%
@@ -47,20 +50,20 @@ protocols_get <- function(drive_folder, prot_gsheet) {
                                 plates_processed <- protocol_folder_ls %>% filter(name == temp_csv)
                                 #TODO: add same fail proof mechanims for the hamilton folder
                         }
-                        
+
                         # Get the new folder link
-                        links <- list(drbl, plates_processed, hami_drbl ) %>%
+                        links <- list(drbl, plates_processed, hami_drbl) %>%
                                 map_chr(dribble_get_link)
-                        
+
                         colID <- gsheet_colID_from_tibble(protocols, "folder_url")
-                        
+
                         # insert folder and plates tracker url in the gsheet
                         gs_edit_cells(ss = prot_gsheet,
                                       ws = 1,
                                       input = links,
                                       anchor = paste0(colID, i + 1),
                                       byrow = TRUE)
-                        
+
                         #Add links to protocols
                         protocols[i, "folder_url"] <- links[1]
                         protocols[i, "plates_processed_url"] <- links[2]
@@ -68,7 +71,7 @@ protocols_get <- function(drive_folder, prot_gsheet) {
         }
         if (update_hami_csv) {
                 tmp_path <- "temp/protocols_list.csv"
-                
+
                 protocols %>%
                         select(index, name) %>%
                         filter(name != protocols$name[1]) %>%
@@ -77,7 +80,9 @@ protocols_get <- function(drive_folder, prot_gsheet) {
                                   quote = TRUE,
                                   eol = "\r\n",
                                   row.names = FALSE)
-                protocols_csv %>%
+
+                {if (is_dev_server(session)) protocols_csv_dev
+                        else protocols_csv_prod} %>%
                         as_id() %>%
                         drive_update(media = tmp_path)
         }
@@ -90,7 +95,9 @@ protocols_set_modal <- function(input, file_name, custom_msg, protocols,required
         ns <- session$ns
         csv_non_proc_str <- "unprocessed"
         default_set_prot <- "Select protocol"
-        
+        protocols_sheet <- {if (is_dev_server(session)) protocols_sheet_dev
+                else protocols_sheet_prod}
+
         showModal(
                 modalDialog(
                         div(str_interp("Custom message for ${file_name} is ${custom_msg}.")),
@@ -128,8 +135,8 @@ protocols_set_modal <- function(input, file_name, custom_msg, protocols,required
                                                 target = "_blank")),
                         size = "l"
                 ))
-        
-        
+
+
 }
 
 move_drive_file <- function(protocols, prot_name, tecan, input) {
@@ -141,12 +148,12 @@ move_drive_file <- function(protocols, prot_name, tecan, input) {
                                  as_id())
 }
 
-update_uis <- function(prot_name, tecan, input, session) {
+update_uis <- function(prot_name, tecan, file_id, session) {
         # Switch UI to the protocol where this file was moved to
         updateSelectInput(session = session,
                           inputId = "protocol",
                           selected = prot_name)
-        
+
         #Set whicih file to select after the files menu update
-        tecan$selected_file <- input$file
+        tecan$selected_file <- file_id
 }
