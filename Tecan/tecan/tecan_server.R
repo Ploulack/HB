@@ -128,10 +128,15 @@ tecan_server <- function(input, output, session, gtoken) {
         #### PROTOCOLS ####
         #On first opening, move files to their appropriate folders
         observeEvent(experiment$raw, {
+                unitary_folder <- protocols()$name[1]
                 if (input$protocol != "New") return()
                 if (is.null(experiment$raw$user_msg) || str_length(experiment$raw$user_msg) == 0) {
-                        move_drive_file(protocols(), prot_name = "Unitary", tecan, input)
+                        progress_prot_change <- Progress$new()
+                        progress_prot_change$inc(.5, str_interp("Moving file to ${unitary_folder} drive folder."))
+                        move_drive_file(protocols(), prot_name = unitary_folder, tecan, input)
+                        progress_prot_change$inc(.5, str_interp("Displaying list of ${unitary_folder} name."))
                         update_uis("Unitary", tecan = tecan, file_id = input$file, session = session)
+                        progress_prot_change$close()
                 } else {
                         #If the Tecan file includes a custom msg popup choice to the user to do the matching
                         protocols_set_modal(input = input,
