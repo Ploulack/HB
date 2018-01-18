@@ -434,7 +434,7 @@ tecan_server <- function(input, output, session, gtoken) {
         #### DISPLAY ####
         # Tell user if it's a 260 or 600nm
         output$type <- eventReactive(experiment$raw, {
-                experiment$raw$type
+                str_interp("${experiment$raw$type} - ${file_date(tecan_file$file_dribble$name)}")
         })
         outputOptions(output, "type", suspendWhenHidden = FALSE)
 
@@ -457,6 +457,7 @@ tecan_server <- function(input, output, session, gtoken) {
                         # this could run only after tagging...OR remove the data_tagged trigger of the observer.
                         if (experiment$raw$type == "DNA Quantification") {
                                 #patch: if experiment has message
+
                                 if (is.null(experiment$raw$user_msg))
                                         experiment$calculated <- calc_values(experiment$raw$data,
                                                                              absorbance,
@@ -478,7 +479,6 @@ tecan_server <- function(input, output, session, gtoken) {
                                                 str_length(experiment$raw$user_msg) == 0)) &&
                         experiment$raw$type == tecan_protocols[2] %>%
                                                           names()
-                        # experiment$raw$type == "DNA Quantification"
         })
 
         output$summary <- renderTable({
@@ -495,7 +495,6 @@ tecan_server <- function(input, output, session, gtoken) {
         output$hist <- renderPlot({
                 if (is.null(experiment$raw$type)) return()
                 if (!is_displayed()) return()
-
                 is_DNAquant <- experiment$raw$type == "DNA Quantification"
 
                 if (is_DNAquant) {
@@ -514,7 +513,10 @@ tecan_server <- function(input, output, session, gtoken) {
                         theme(legend.position = c(.9,.9)) +
                         scale_x_discrete("Samples") +
                         ylab(if_else(is_DNAquant, "Concentration", "Value")) +
-                        scale_fill_discrete(limits = c('FALSE', 'TRUE')) +
+                        scale_fill_discrete(limits = c('FALSE', 'TRUE'),
+                                            guide = guide_legend(title = ifelse(is_DNAquant,
+                                                                                "Ratio in [1.7, 2.0]",
+                                                                                "Value > 0.2"))) +
                         if (is_DNAquant) {
                                 geom_text(
                                         aes( y = Concentration + mean(Concentration) * 0.03),

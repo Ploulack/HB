@@ -15,23 +15,27 @@ protocols_get <- function(drive_folder, prot_gsheet, session) {
 
         #Create directory and add directory link to spreadsheet if a protocol doesn't have its own
         for (i in (1:nrow(protocols))) {
-
                 prot_row <- protocols[i, ]
                 #TODO: Add another condition like the name is not empty
                 if (is.na(prot_row$folder_url)) {
                         update_hami_csv <- TRUE
                         #Create the drive directory
                         # First check if the directory doesn't already exist
-                        tecan_folder_ls <- drive_ls(as_id(drive_folder))
-                        if (!prot_row$name %in% (tecan_folder_ls %>% '[['("name"))) {
+                        tecan_folder_ls <- drive_ls(as_id(drive_folder), type = "folder")
+
+                        if (!prot_row$name %in% tecan_folder_ls$name) {
                                 drbl <- drive_mkdir(name = prot_row$name,
                                                     parent = as_id(drive_folder))
+
                                 hami_drbl <- drive_mkdir(name = prot_row$name,
                                                          parent = as_id(if (is_dev_server(session)) protocols_hami_folder_dev
                                                                         else protocols_hami_folder_prod))
                         }
 
-                        else drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
+                        else {
+                                drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
+                                hami_drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
+                                }
 
                         #Create the plates index
                         stopifnot(is.integer(prot_row$total_plates))
@@ -113,8 +117,8 @@ protocols_set_modal <- function(input, file_name, custom_msg, protocols,required
                                                      multiple = FALSE),
                                          numericInput(ns("well_volume"),
                                                       label = "Enter well volume in ul",
-                                                      value = 50,
-                                                      min = 50,
+                                                      value = 45,
+                                                      min = 40,
                                                       max = 1000,
                                                       step = 50),
                                          numericInput(ns("target_concentration"),
