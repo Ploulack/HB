@@ -57,15 +57,9 @@ dl_tecan_xml <- function(file_id, folder) {
         tecan_xml
 }
 
-
-tecan_extract <- function(input_file, dribble) {
-        folder <- "temp/"
-        #Todo: find the input_file in the dribble
-        # tecan <- dl_tecan_xml(dribble %>% filter(id == input_file), folder)
-        tecan <- dl_tecan_xml(input_file, folder)
-
+tecan_data <- function(tecan) {
         #Get the Data which is in the Elements "Section",
-        data <- map(xml_find_all(tecan, "Section"), function(x) {
+       data <- map(xml_find_all(tecan, "Section"), function(x) {
 
                 nodes <- xml_find_all(x,"Data") %>%
                         xml_find_all("Well")
@@ -86,16 +80,29 @@ tecan_extract <- function(input_file, dribble) {
 
         if (nrow(data$Batch_1$Measures) == 0 || length(data$Batch_1$Wavelength) == 0) {
                 showNotification(ui = "Unknown file structure",
-                        type = "warning")
+                                 type = "warning")
                 return()
         }
 
-        list("data" = data, "type" = tecan_type(tecan), "user_msg" = tecan_custom_msg(tecan))
+       return(data)
 }
-#TODO: replace order based default water well pos to plate numbering
-calc_values <- function(list, molar_absorbance, path_length, water_well_pos = 1, water_readings = NULL) {
 
-        list_delta <- list %>%
+tecan_extract <- function(input_file, dribble) {
+        folder <- "temp/"
+        #Todo: find the input_file in the dribble
+        # tecan <- dl_tecan_xml(dribble %>% filter(id == input_file), folder)
+        tecan <- dl_tecan_xml(input_file, folder)
+
+        list(
+                "data" = tecan_data(tecan),
+                "type" = tecan_type(tecan),
+                "user_msg" = tecan_custom_msg(tecan)
+             )
+}
+
+calc_values <- function(tecan_raw_data, molar_absorbance, path_length, water_well_pos = 1, water_readings = NULL) {
+
+        list_delta <- tecan_raw_data %>%
                 map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%
                 map(~mutate(.x,
                             Delta = Value - ifelse(!is.null(water_well_pos),

@@ -158,6 +158,6 @@ update_uis <- function(prot_name, tecan, file_id, session) {
                           inputId = "protocol",
                           selected = prot_name)
 
-        #Set whicih file to select after the files menu update
+        #Set which file to select after the files menu update
         tecan$selected_file <- file_id
 }
