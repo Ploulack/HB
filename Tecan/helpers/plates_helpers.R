@@ -34,7 +34,7 @@ generate_plates <- function(parts) {
 
 generate_96_pos <- function() {
         map(1:12, function(x) {
-                map_chr(LETTERS[1:8], ~ paste0(.x,x)) 
+                map_chr(LETTERS[1:8], ~ paste0(.x,x))
         }) %>%
                 unlist()
 }
@@ -44,5 +44,13 @@ letter_to_96_pos <- function(letter) {
         l <- str_length(letter)
         pos <- which(LETTERS == str_sub(letter, l, l)) + 26 * (l - 1)
         generate_96_pos()[pos]
-        
+
+}
+
+plate_sort_sample <- function(plate) {
+        assert_all_are_true("Sample" %in% names(plate))
+        plate %>%
+                arrange(as.integer(str_extract(Sample, "\\d+")),
+                                    str_extract(Sample, "[A-Z]")
+                        )
 }

@@ -1,6 +1,6 @@
-library(purrr)
+library(purrr); library(glue)
 source("protocols/protocols_values.R"); source("helpers/strings.R")
-source("helpers/general.R")
+source("helpers/general.R"); source("protocols/pooling.R")
 
 protocols_get <- function(drive_folder, prot_gsheet, session) {
         #Trigger variable to update the csv in the Google Sync folder for hami methods
@@ -35,7 +35,7 @@ protocols_get <- function(drive_folder, prot_gsheet, session) {
                         else {
                                 drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
                                 hami_drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
-                                }
+                        }
 
                         #Create the plates index
                         stopifnot(is.integer(prot_row$total_plates))
@@ -93,7 +93,6 @@ protocols_get <- function(drive_folder, prot_gsheet, session) {
         return(protocols)
 }
 
-
 protocols_set_modal <- function(input, file_name, custom_msg, protocols,required_msg = NULL, session) {
         #TODO: gestion db...
         ns <- session$ns
@@ -111,32 +110,74 @@ protocols_set_modal <- function(input, file_name, custom_msg, protocols,required
                                     choices = protocols$name[-1] %>% prepend(default_set_prot)),
 
                         conditionalPanel(condition = paste0("input['", ns("set_protocol"), "'] != '", default_set_prot, "'"),
-                                         selectInput(inputId = ns("set_plate_nb"),
-                                                     label = "Select plate nb",
-                                                     choices = "",
-                                                     multiple = FALSE),
-                                         numericInput(ns("well_volume"),
-                                                      label = "Enter well volume in ul",
-                                                      value = 45,
-                                                      min = 40,
-                                                      max = 1000,
-                                                      step = 50),
-                                         numericInput(ns("target_concentration"),
-                                                      label = "Target Concentration in ng/ul",
-                                                      value = 100,
-                                                      min = 100,
-                                                      max = 500,
-                                                      step = 100)
+                                         fluidRow(
+                                                 column(2, selectInput(inputId = ns("set_plate_nb"),
+                                                                       label = "Select plate nb",
+                                                                       choices = "",
+                                                                       multiple = FALSE
+                                                 )),
+                                                 column(3, numericInput(ns("tecan_sample_vol"),
+                                                                        label = "Sampling uL for Tecan reading",
+                                                                        value = 10,
+                                                                        min = 10,
+                                                                        max = 50,
+                                                                        step = 5
+                                                                        )),
+                                                 column(3, numericInput(ns("tecan_water_vol"),
+                                                                        label = "Water added for Tecan reading",
+                                                                        value = 40,
+                                                                        min = 30,
+                                                                        max = 50,
+                                                                        step = 5
+                                                 ))
                                          ),
+                                         fluidRow(
+
+                                                 column(3, numericInput(ns("well_volume"),
+                                                                        label = "Wells to pool current vol",
+                                                                        value = 50,
+                                                                        min = 40,
+                                                                        max = 200,
+                                                                        step = 10
+                                                 )),
+                                                 column(3, numericInput(ns("dw_min_conc"),
+                                                                        label = "Minimum final pool conc.",
+                                                                        value = 100,
+                                                                        min = 0,
+                                                                        max = 1000,
+                                                                        step = 5
+                                                 )),
+                                                 column(3, numericInput(ns("min_nb_wells"),
+                                                                        label = "Min wells nb to pool",
+                                                                        value = 1,
+                                                                        min = 1,
+                                                                        max = 96))
+                                         ),
+                                         # numericInput(ns("target_concentration"),
+                                         #              label = "Target Concentration in ng/ul",
+                                         #              value = 100,
+                                         #              min = 100,
+                                         #              max = 500,
+                                         #              step = 100)
+                                         fluidRow(
+                                                 column(width = 6, tableOutput(ns("pooling"))),
+                                                 column(offset = 1, width = 4,
+                                                        htmlOutput(ns("deep_well")))
+                                         )
+                        ),
 
                         if (!is.null(required_msg))
                                 div(tags$b(required_msg, style = "color: red;")),
-                        footer = tagList(actionButton(inputId = ns("ok_protocol"),
-                                                      label = "OK"),
-                                         tags$a(class = "btn btn-default",
-                                                href = protocols_sheet,
-                                                "Create new protocol",
-                                                target = "_blank")),
+                        footer = tagList(
+                                actionButton(inputId = ns("ok_protocol"),
+                                             label = "OK"),
+                                # actionButton(inputId = ns("preview_pooling"),
+                                #              label = "Preview"),
+                                tags$a(class = "btn btn-default",
+                                       href = protocols_sheet,
+                                       "Create new protocol",
+                                       target = "_blank")
+                        ),
                         size = "l"
                 ))
 
@@ -160,4 +201,35 @@ update_uis <- function(prot_name, tecan, file_id, session) {
 
         #Set which file to select after the files menu update
         tecan$selected_file <- file_id
+}
+
+render_pooling <- function(input, output, tecan_calculated) {
+
+        pooling_res <- reactive({
+                plate_pooling(tecan_calculated,
+                              well_volume = input$well_volume,
+                              min_dw_conc = input$dw_min_conc,
+                              min_wells_nb = input$min_nb_wells,
+                              tecan_sample_vol = input$tecan_sample_vol,
+                              tecan_water_vol = input$tecan_water_vol)
+        })
+
+        output$pooling <- renderTable({
+                pooling_res()$plate_pooled
+        })
+
+        output$deep_well <- renderText({
+                dw <- pooling_res()$deep_well
+
+                glue("
+                <p>
+                        <strong>Resulting Deep Well:</strong>
+                </p>
+                <ul>
+                        <li>Pool from {dw$n_wells_pooled} wells</li>
+                        <li>Concentration {round(dw$concentration, 2)}</li>
+                        <li>Volume {round(dw$volume, 2)}</li>
+                </ul>")
+        })
+        pooling_res()
 }

@@ -5,6 +5,8 @@ tecan_server <- function(input, output, session, gtoken) {
         source("helpers/mongo_helpers.R"); source("tecan/tecan_nadh.R")
         source("registry/registry_helpers.R"); source("registry/registry_values.R")
         source("helpers/strings.R"); source("helpers/general.R")
+        source("helpers/plates_helpers.R")
+
         ns <- session$ns
         tecan_progress <- Progress$new()
 
@@ -166,12 +168,24 @@ tecan_server <- function(input, output, session, gtoken) {
                 updateSelectInput(session = session,
                                   inputId = "set_plate_nb",
                                   choices = plate_choices)
+                render_pooling(input,
+                               output,
+                               experiment$calculated$Results)
 
         }, ignoreInit = TRUE)
+
 
         #On modal validation, update protocols with selected plate
         observeEvent(input$ok_protocol, {
                 #TODO: Add checks on the inputs...
+
+                # Store the pooling result from the users final settings in the modal
+                experiment$pool <- plate_pooling(experiment$calculated$Results,
+                              well_volume = input$well_volume,
+                              min_dw_conc = input$dw_min_conc,
+                              min_wells_nb = input$min_nb_wells)
+
+                # Close the dialog popup
                 removeModal()
 
                 experiment$protocol <- input$set_protocol
@@ -235,13 +249,16 @@ tecan_server <- function(input, output, session, gtoken) {
                 update_uis(prot_name = input$set_protocol, tecan = tecan, file_id = input$file, session = session)
 
                 #Calculate water volume to normalize and generate the csv files for hamilton then upload to drive
-                experiment$calculated$Results <- tecan_calc_water_vol(experiment$calculated$Results,
-                                                                      well_volume = input$well_volume,
-                                                                      target_concentration = input$target_concentration)
+                # experiment$calculated$Results <- tecan_calc_water_vol(experiment$calculated$Results,
+                #                                                       well_volume = input$well_volume,
+                #                                                       target_concentration = input$target_concentration)
 
                 tmp_norm_csv <- str_interp("temp/${input$set_protocol}__plate_${input$set_plate_nb}.csv")
-                experiment$calculated$Results %>%
-                        select(Sample, Normalize) %>%
+                experiment$pool$plate_pooled %>%
+                        select(Sample, Aspirate_To_Pool = Pool_Volume) %>%
+                        filter(!is.na(Aspirate_To_Pool)) %>%
+                        mutate(Aspirate_To_Pool = round(Aspirate_To_Pool, 1)) %>%
+                        plate_sort_sample() %>%
                         write.csv(file = tmp_norm_csv,
                                   quote = TRUE,
                                   eol = "\r\n",
@@ -539,4 +556,5 @@ tecan_server <- function(input, output, session, gtoken) {
                         NULL
                 }
         })
+
 }

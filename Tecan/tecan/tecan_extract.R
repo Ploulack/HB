@@ -1,4 +1,4 @@
-require(lubridate)
+require(lubridate); library(xml2)
 require(stringr)
 
 source("drive_helpers.R")
@@ -44,18 +44,11 @@ tecan_type <- function(xml_file) {
         }
 }
 
-
-dl_tecan_xml <- function(file_id, folder) {
-        library(xml2)
-        if (!dir.exists(folder)) {
-                dir.create(folder)
-        }
-        local_ <- paste0(folder,file_id)
-        drive_download(as_id(file_id), path = local_, overwrite = TRUE)
-        tecan_xml <- read_xml(local_)
-        file.remove(local_)
-        tecan_xml
-}
+# read_tecan_xml <- function(file_id, folder) {
+#         tecan_xml <- safe_read_xml(local_)
+#         file.remove(local_)
+#         tecan_xml
+# }
 
 tecan_data <- function(tecan) {
         #Get the Data which is in the Elements "Section",
@@ -87,20 +80,40 @@ tecan_data <- function(tecan) {
        return(data)
 }
 
+tecan_read_xml <- function(xml_file) {
+        safe_read_xml <- safely(read_xml)
+        tecan <- safe_read_xml(xml_file)
+
+        if (is.null(tecan$error)) {
+                list(
+                        "data" = tecan_data(tecan$result),
+                        "type" = tecan_type(tecan$result),
+                        "user_msg" = tecan_custom_msg(tecan$result)
+                )
+        } else {
+                list("data" = NULL,
+                     "type" = tecan$error,
+                     "user_msg" = NULL)
+        }
+}
+
 tecan_extract <- function(input_file, dribble) {
         folder <- "temp/"
         #Todo: find the input_file in the dribble
-        # tecan <- dl_tecan_xml(dribble %>% filter(id == input_file), folder)
-        tecan <- dl_tecan_xml(input_file, folder)
+        if (!dir.exists(folder)) {
+                dir.create(folder)
+        }
+        local_xml <- paste0(folder,input_file)
+        drive_download(as_id(input_file), path = local_xml, overwrite = TRUE)
 
-        list(
-                "data" = tecan_data(tecan),
-                "type" = tecan_type(tecan),
-                "user_msg" = tecan_custom_msg(tecan)
-             )
+        tecan_read_xml(local_xml)
 }
 
-calc_values <- function(tecan_raw_data, molar_absorbance, path_length, water_well_pos = 1, water_readings = NULL) {
+calc_values <- function(tecan_raw_data,
+                        molar_absorbance = 0.02,
+                        path_length = 0.19,
+                        water_well_pos = 1,
+                        water_readings = NULL) {
 
         list_delta <- tecan_raw_data %>%
                 map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%

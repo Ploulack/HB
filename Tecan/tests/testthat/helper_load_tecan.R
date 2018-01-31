@@ -1,6 +1,11 @@
+library(tidyverse); library(purrr)
+
 setwd("~/Documents/R/HB/Tecan/")
 source("tecan/tecan_extract.R")
 source("tecan/tecan_values.R")
+source("protocols/protocols_values.R")
+source("protocols/pooling.R")
+source("helpers/plates_helpers.R")
 
 #Get tecan protocols names
 dna_tecan <- tecan_protocols %>%
@@ -25,3 +30,10 @@ tecan_examples <- list(
                               desc = "Yeast Growth, all values below .2")
 ) %>%
         map(~list_modify(.x, data = tecan_data(.x$xml)))
+
+#Examples of xml files that don't work
+tecan_error_examples <- list(
+        "truncated" = list(file = "tests/testthat/tecan_xml_files/2018-01-31 11-02-37_plate_1 _ truncated.xml",
+                           desc = "Completely truncated.",
+                           error = "Premature end of data in tag Version line 68")
+)
