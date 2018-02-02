@@ -44,12 +44,6 @@ tecan_type <- function(xml_file) {
         }
 }
 
-# read_tecan_xml <- function(file_id, folder) {
-#         tecan_xml <- safe_read_xml(local_)
-#         file.remove(local_)
-#         tecan_xml
-# }
-
 tecan_data <- function(tecan) {
         #Get the Data which is in the Elements "Section",
        data <- map(xml_find_all(tecan, "Section"), function(x) {

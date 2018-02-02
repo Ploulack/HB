@@ -5,7 +5,7 @@ delete_exp_files_ui <- function(id) {
                      label = "Remove File")
 }
 
-delete_exp_files <- function(input, output, session, tecan_file, db, files_list, removed_files) {
+delete_exp_files <- function(input, output, session, file, db, files_list, removed_files) {
         if (is.null(tecan_file) || is.null(files_list)) return()
 
         ns <- session$ns
@@ -23,13 +23,16 @@ delete_exp_files <- function(input, output, session, tecan_file, db, files_list,
         observeEvent(input$remove_file, {
                 removeModal()
                 # Remove file
+
+                trash_drive_url <- get_drive_url(session, "trash")
+
                 drive_mv(file = tecan_file$file_dribble,
-                         path = as_id("https://drive.google.com/open?id=0B4_A43u3xZeRbWJiT2ZuVnpQR28"))
+                         path = as_id(trash_drive_url))
 
                 #Remove db entry
-                remove_log <- db$remove(paste0('{"file" : "',tecan_file$file_dribble$id,'"}'), just_one = TRUE)
-                if (remove_log$modifiedCount == 1) {
-                        showNotification(ui = str_interp("Removed entry for file ${tecan_file$file_dribble$name}") ,
+                remove_log <- db$remove(paste0('{"file" : "',file$id,'"}'), just_one = TRUE)
+                if (remove_log) {
+                        showNotification(ui = str_interp("Removed entry for file ${file$name}") ,
                                          duration = 3,
                                          type = "message")
                 }

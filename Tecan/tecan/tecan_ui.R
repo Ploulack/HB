@@ -1,7 +1,7 @@
 tecan_ui <- function(id) {
         ns <- NS(id)
-        source(file = "tecan/tecan_db_ui.R")
         source(file = "helpers/delete_file_button_module.R")
+
         fluidPage(
                 sidebarPanel(width = 3,
                              #Conditional to only display two parameter inputs for relevant file type
@@ -39,7 +39,7 @@ tecan_ui <- function(id) {
                                                            "Latest Tecan Files",
                                                            choices = wait_msg)),
                                      column(1, actionButton(ns("go_file"),
-                                                           "Go")
+                                                           "Open")
                                       )),
                              tags$hr(),
                              conditionalPanel(

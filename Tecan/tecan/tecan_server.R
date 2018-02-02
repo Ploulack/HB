@@ -1,11 +1,11 @@
-tecan_server <- function(input, output, session, gtoken) {
+tecan_server <- function(input, output, session) {
         library(shiny); library(stringr); library(purrr); library(magrittr)
         source("tecan/tecan_extract.R"); source("tecan/tecan_values.R")
         source("drive_helpers.R"); source("helpers/delete_file_button_module.R")
         source("helpers/mongo_helpers.R"); source("tecan/tecan_nadh.R")
         source("registry/registry_helpers.R"); source("registry/registry_values.R")
         source("helpers/strings.R"); source("helpers/general.R")
-        source("helpers/plates_helpers.R")
+        source("helpers/plates_helpers.R") ; source("mongo/db_values.R")
 
         ns <- session$ns
         tecan_progress <- Progress$new()
@@ -13,15 +13,13 @@ tecan_server <- function(input, output, session, gtoken) {
         drive_tecanURL <- {if (is_dev_server(session)) tecan_dev_drive_URL
                 else tecan_prod_drive_URL}
 
+        #Only initiate mongo connexion when needed
+        db <- db_from_environment(session, collection = "lab_experiments")
+
         #TODO: Try Promises on this
         tecan_progress$inc(.1, detail = "Accessing registry.")
         registry <- registry_key_names(registry_url, registry_sheets)
 
-        #Only initiate mongo connexion when needed
-        if (!exists("db")) {
-                source("mongo/db_values.R")
-                db <- db_from_environment(session, collection = "lab_experiments")
-        }
         #build the protocol tibble from the spread sheet
         if (!exists("protocols")) {
                 tecan_progress$inc(.1, detail = "Accessing experiments.")
@@ -43,6 +41,19 @@ tecan_server <- function(input, output, session, gtoken) {
 
         db_files <- reactiveValues()
 
+        #On change of selected protocol, update file list from drive
+        observeEvent(input$protocol, {
+                if (input$protocol == "New")
+                        drive_url <- drive_tecanURL
+                else
+                        drive_url <- protocols() %>%
+                                filter(name == input$protocol) %$%
+                                folder_url
+                tecan$files <- drive_url %>%
+                        googledrive::as_id() %>%
+                        get_ordered_filenames_from_drive()
+        }, ignoreInit = TRUE)
+
         #Container for ordered drive folder file names
         tecan <- reactiveValues(files = drive_tecanURL %>%
                                         as_id() %>%
@@ -55,11 +66,15 @@ tecan_server <- function(input, output, session, gtoken) {
         choiceFiles <- eventReactive(c(input$refresh, # User checks for new files
                                        removed_files(), # User has removed files
                                        tecan$files), # User has changed files
-                                     {dat <- tecan$files %>%
+                                     {
+                                             dat <- tecan$files %>%
                                              filter(id != if (is.null(removed_files())) ""
                                                     else removed_files()) %>%
                                              select(id, exp_date)
-                                     dat$id %>% set_names(dat$exp_date)})
+
+                                     dat$id %>%
+                                             set_names(dat$exp_date)
+                                     })
 
         #Display the file selection list
         observeEvent(c(choiceFiles(), input$refresh), {
@@ -92,7 +107,8 @@ tecan_server <- function(input, output, session, gtoken) {
         #Delete file button module
         callModule(module = delete_exp_files,
                    id = "delete_button",
-                   tecan_file = tecan_file,
+                   file = list(id = tecan_file$file_dribble$id,
+                               name = tecan_file$file_dribble$name),
                    db = db,
                    files_list = choiceFiles(),
                    removed_files)
@@ -269,18 +285,7 @@ tecan_server <- function(input, output, session, gtoken) {
 
         }, ignoreInit = TRUE)
 
-        #On change of selected protocol, update file list from drive
-        observeEvent(input$protocol, {
-                if (input$protocol == "New")
-                        drive_url <- drive_tecanURL
-                else
-                        drive_url <- protocols() %>%
-                                filter(name == input$protocol) %$%
-                                folder_url
-                tecan$files <- drive_url %>%
-                        googledrive::as_id() %>%
-                        get_ordered_filenames_from_drive()
-        }, ignoreInit = TRUE)
+
 
         #### DB STORAGE ####
         #Container for samples

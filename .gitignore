@@ -90,6 +90,7 @@ Tecan/tests sur la récup du registre.R
 Tecan/mongo/db_values.R
 
 Tecan/hamilton/hamilton_values.R
+Tecan/helpers/generic_values.R
 
 *.csv
 .Rproj.user

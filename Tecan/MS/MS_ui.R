@@ -1,14 +1,15 @@
-library(shiny)
-
-source("auth/google_button_ui.R")
-
-MS_ui <- function(id) {
+ms_ui <- function(id) {
         ns <- NS(id)
+        source(file = "helpers/delete_file_button_module.R")
+        source("helpers/ui_generics/select_file_ui.R")
+
+
         fluidPage(
-                titlePanel("Testing systematic Google auth"),
+               select_file_ui("ms"),
                 mainPanel(
-                        google_auth_button_ui(ns("Auth")),
-                        tableOutput(ns("token"))
+                        titlePanel(
+                                "WIP"
+                        )
                 )
         )
 }

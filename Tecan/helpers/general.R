@@ -8,3 +8,23 @@ is_dev_server <- function(session) {
         else if (str_detect(host_name, prod_env)) return(FALSE)
         else stop("Unknown server environment")
 }
+
+get_drive_url <- function(session, name) {
+        source("helpers/generic_values.R")
+        source("ms/ms_values.R")
+        assert_all_are_non_missing_nor_empty_character(name)
+        name <- name %>%
+                tolower()
+
+        is_dev <- is_dev_server(session)
+
+        res <- switch(name,
+               trash = {if (is_dev) trash_dev_drive_URL
+                       else trash_prod_drive_URL},
+               ms = ifelse(is_dev, ms_dev_drive_url, ms_prod_drive_url)
+               )
+        if (is.null(res)) {
+                warning("Unkown drive URL value")
+                return(NULL)}
+        else return(res)
+}
