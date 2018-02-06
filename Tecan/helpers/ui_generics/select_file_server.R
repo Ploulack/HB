@@ -2,7 +2,12 @@ select_file <- function(input,
                         output,
                         session,
                         progress,
-                        drive_url) {
+                        drive_url,
+                        selected) {
+
+        #This is to dynamically get the correct column name of the protocols experiment sheet
+        current_tab_col_name <- str_extract(session$ns(""), "^\\w+") %>%
+                paste0("_folder_url")
 
         #build the protocol tibble from the spread sheet
         if (!exists("protocols")) {
@@ -10,7 +15,8 @@ select_file <- function(input,
                 source("protocols/protocols_functions.R")
                 prot_gsheet <- {if (is_dev_server(session)) gs_url(protocols_sheet_dev)
                         else gs_url(protocols_sheet_prod)}
-                protocols <- reactiveVal(protocols_get(drive_tecanURL, prot_gsheet, session = session))
+                protocols <- reactiveVal(protocols_get(drive_url, prot_gsheet, session = session,
+                                                       folder_url = current_tab_col_name))
         }
 
         # Update the Protocol select input
@@ -22,21 +28,23 @@ select_file <- function(input,
 
         #Container for ordered drive folder file names
         container <- reactiveValues(files = drive_url %>%
-                                        as_id() %>%
-                                        get_ordered_filenames_from_drive(progress = progress),
-                                selected_file = NULL,
-                                selected_protocol = NULL)
+                                            as_id() %>%
+                                            get_ordered_filenames_from_drive(progress = progress),
+                                    selected_file = NULL,
+                                    selected_protocol = NULL)
 
         removed_files <- reactiveVal(NULL)
 
         #On change of selected protocol, update file list from drive
         observeEvent(input$protocol, {
+
                 if (input$protocol == "New")
-                        url <- drive_URL
+                        url <- drive_url
                 else
                         url <- protocols() %>%
-                                filter(name == input$protocol) %$%
-                                folder_url
+                                filter(name == input$protocol) %>%
+                                "[["(current_tab_col_name)
+
                 container$files <- url %>%
                         googledrive::as_id() %>%
                         get_ordered_filenames_from_drive()
@@ -44,13 +52,13 @@ select_file <- function(input,
 
         #Generate the file selection list
         choice_files <- eventReactive(c(input$refresh, # User checks for new files
-                                       removed_files(), # User has removed files
-                                       container$files), # User has changed files
-                                     {files <- container$files %>%
-                                             filter(id != if (is.null(removed_files())) ""
-                                                    else removed_files()) %>%
-                                             select(id, exp_date)
-                                     files$id %>% set_names(files$exp_date)})
+                                        removed_files(), # User has removed files
+                                        container$files), # User has changed files
+                                      {files <- container$files %>%
+                                              filter(id != if (is.null(removed_files())) ""
+                                                     else removed_files()) %>%
+                                              select(id, exp_date)
+                                      files$id %>% set_names(files$exp_date)})
 
         #Display the file selection list
         observeEvent(c(choice_files(), input$refresh), {
@@ -66,6 +74,7 @@ select_file <- function(input,
                 if (!is.null(choices)) progress$close()
         })
 
+
         #Delete file button module
         callModule(module = delete_exp_files,
                    id = "delete_button",
@@ -77,4 +86,26 @@ select_file <- function(input,
                    files_list = choice_files(),
                    removed_files)
 
+        observeEvent(selected(), {
+                # Switch UI to the protocol where this file was moved to
+                updateSelectInput(session = session,
+                                  inputId = "protocol",
+                                  selected = selected()$protocol)
+
+                #Set which file to select after the files menu update
+                container$selected_file <- selected()$file_id
+
+        })
+
+        return(list(
+                id = reactive(input$file),
+                file_dribble = reactive(container$files %>% filter(id == input$file)),
+                files = reactive(container$files),
+                container = reactive(container),
+                files_list = reactiveVal(choice_files()),
+                protocol = reactive(input$protocol),
+                protocols = protocols,
+                protocols_gsheet = prot_gsheet,
+                go_file = reactive(input$go_file)
+        ))
 }

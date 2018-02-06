@@ -2,7 +2,7 @@ first_unused <- function(used_labels = NULL) {
         if (is.null(used_labels)) return("A")
         quotient <- length(used_labels) %/% 26
         rest <- length(used_labels) %% 26
-        
+
         if (rest == 0) {
                 res <- NULL
                 for (i in 1:(quotient + 1)) {
@@ -11,7 +11,7 @@ first_unused <- function(used_labels = NULL) {
                 res}
         else {
                 for (i in 0:quotient) {
-                        index <- used_labels %>% str_length() == i + 1 
+                        index <- used_labels %>% str_length() == i + 1
                         if (sum(index) != 26)
                         {
                                 l <- used_labels[index] %>%
@@ -34,8 +34,8 @@ dribble_get_link <- function(dribble) {
 }
 
 gsheet_colID_from_tibble <- function(tbl, tbl_col) {
-        
+
         stopifnot(ncol(tbl) <= 26); stopifnot(is_tibble(tbl))
         idx <- tbl_col == colnames(tbl)
-        LETTERS[1:dim(tbl)[2]][idx]
+        LETTERS[1:ncol(tbl)][idx]
 }

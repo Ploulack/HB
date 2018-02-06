@@ -94,9 +94,9 @@ nadh_detection <- function(nadh, cal_conc, input, output, ns) {
         #return(measured_samples())
 }
 
-sample_widget_ui <- function(id, sample_well, sample_key, tecan_file, registry) {
+sample_widget_ui <- function(id, sample_well, sample_key, tecan_n, registry) {
         ns <- NS(id)
-        if (tecan_file$type == tecan_protocols_with_db[1]) {
+        if (tecan_n$raw()$type == tecan_protocols_with_db[1]) {
                 tags$span(id = ns("widget"),
                          column(width = 2,
                                 selectizeInput(
@@ -120,12 +120,12 @@ sample_widget_ui <- function(id, sample_well, sample_key, tecan_file, registry) 
         }
 }
 
-sample_widget <- function(input, output, session, sample_well, sample_key, samples, tecan_file, db, registry, go_file) {
+sample_widget <- function(input, output, session, sample_well, sample_key, samples, tecan_n, db, registry, go_file) {
         ns <- session$ns
 
         # Slow text input value update
         reactive_key <- reactive({input$well_key})
-        delay <- ifelse(tecan_file$type == tecan_protocols_with_db[2], 1500, 0)
+        delay <- ifelse(tecan_n$raw()$type == tecan_protocols_with_db[2], 1500, 0)
         input_key <- debounce(reactive_key, delay)
         # input_key <- reactive({input$well_key})
 
@@ -135,7 +135,7 @@ sample_widget <- function(input, output, session, sample_well, sample_key, sampl
                 if (is.null(input_key()) || input_key() == "") return()
                 if (input_key() != samples()$Key[samples()$Sample == sample_well]) {
                         #Update db entry
-                        str1 <- str_interp('{ "file" : "${tecan_file$file}", "samples.Sample" : "${sample_well}"}')
+                        str1 <- str_interp('{ "file" : "${tecan_n$id()}", "samples.Sample" : "${sample_well}"}')
                         str2 <- str_interp('{"$set" : {"samples.$.Key" : "${input_key()}"}}')
                         upd_check <- db$update(str1, str2)
                         if (upd_check$modifiedCount == 1) {
@@ -176,28 +176,28 @@ sample_widget <- function(input, output, session, sample_well, sample_key, sampl
 
 }
 
-db_update_entry <- function(db, tecan_file, samples, notif_msg = NULL) {
+db_update_entry <- function(db, tecan_n, samples, notif_msg = NULL) {
         samples_str <- jsonlite::toJSON(samples, dataframe = 'rows')
         #String to add the 280 data
-        if (tecan_file$type == tecan_protocols_with_db[1]) {
+        if (tecan_n$raw()$type == tecan_protocols_with_db[1]) {
                 #TODO: Add check that batch_2$Wavelength == 280...
-                data280 <- jsonlite::toJSON(tecan_file$data$Batch_2$Measures, dataframe = "rows")
+                data280 <- jsonlite::toJSON(tecan_n$raw()$data$Batch_2$Measures, dataframe = "rows")
                 str280 <- str_interp(', "samples_280":${data280}')
         } else str280 <- ''
 
         update_str <- str_interp('{"$set": {
-                                 "name" : "${tecan_file$file_dribble$name}",
-                                 "type": "${tecan_file$type}",
+                                 "name" : "${tecan_n$file_dribble()$name}",
+                                 "type": "${tecan_n$raw()$type}",
                                  "note" : "",
                                  "samples":${samples_str}${str280}}}')
 
-        mongo_update_file(db, tecan_file$file, update_str,
+        mongo_update_file(db, tecan_n$id(), update_str,
                           notif_msg = notif_msg)
         }
 
-db_create_entry <- function(db, tecan_file, samples) {
-        notif_msg <- str_interp("Created db entry for ${tecan_file$file_dribble$name}")
-        db_update_entry(db, tecan_file, samples, notif_msg)
+db_create_entry <- function(db, tecan_n, samples) {
+        notif_msg <- str_interp("Created db entry for ${tecan_n$file_dribble()$name}")
+        db_update_entry(db, tecan_n, samples, notif_msg)
 }
 
 

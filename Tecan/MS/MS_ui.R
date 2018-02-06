@@ -5,11 +5,13 @@ ms_ui <- function(id) {
 
 
         fluidPage(
-               select_file_ui("ms"),
+               select_file_ui(ns("files")),
                 mainPanel(
                         titlePanel(
-                                "WIP"
-                        )
+                                textOutput(outputId = ns("id"))
+                        ),
+                        tableOutput(ns("protocol"))
+
                 )
         )
 }

@@ -6,7 +6,7 @@ delete_exp_files_ui <- function(id) {
 }
 
 delete_exp_files <- function(input, output, session, file, db, files_list, removed_files) {
-        if (is.null(tecan_file) || is.null(files_list)) return()
+        if (is.null(file) || is.null(files_list)) return()
 
         ns <- session$ns
         observeEvent(input$remove_files_modal, {
@@ -26,7 +26,7 @@ delete_exp_files <- function(input, output, session, file, db, files_list, remov
 
                 trash_drive_url <- get_drive_url(session, "trash")
 
-                drive_mv(file = tecan_file$file_dribble,
+                drive_mv(file = as_id(file$id),
                          path = as_id(trash_drive_url))
 
                 #Remove db entry

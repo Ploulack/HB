@@ -11,7 +11,8 @@ is_dev_server <- function(session) {
 
 get_drive_url <- function(session, name) {
         source("helpers/generic_values.R")
-        source("ms/ms_values.R")
+        source("ms/ms_values.R"); source("protocols/protocols_values.R")
+        source("tecan/tecan_values.R")
         assert_all_are_non_missing_nor_empty_character(name)
         name <- name %>%
                 tolower()
@@ -21,7 +22,10 @@ get_drive_url <- function(session, name) {
         res <- switch(name,
                trash = {if (is_dev) trash_dev_drive_URL
                        else trash_prod_drive_URL},
-               ms = ifelse(is_dev, ms_dev_drive_url, ms_prod_drive_url)
+               ms = ifelse(is_dev, ms_dev_drive_url, ms_prod_drive_url),
+               hami = ifelse(is_dev, protocols_hami_folder_dev, protocols_hami_folder_prod),
+               experiments_csv = ifelse(is_dev, protocols_csv_dev, protocols_csv_prod),
+               tecan = ifelse(is_dev, tecan_dev_drive_URL, tecan_prod_drive_URL)
                )
         if (is.null(res)) {
                 warning("Unkown drive URL value")

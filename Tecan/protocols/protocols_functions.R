@@ -2,7 +2,29 @@ library(purrr); library(glue)
 source("protocols/protocols_values.R"); source("helpers/strings.R")
 source("helpers/general.R"); source("protocols/pooling.R")
 
-protocols_get <- function(drive_folder, prot_gsheet, session) {
+
+get_plates_tracking_drbl <- function(prot_row, drbl) {
+
+        #Create the plates index
+        stopifnot(is.integer(prot_row$total_plates))
+        temp_csv <- str_interp("${prot_row$name} plates processed date.csv")
+        path_temp_csv <- paste0("temp/",temp_csv)
+        protocol_folder_ls <- drive_ls(drbl)
+
+        if (!temp_csv %in% (protocol_folder_ls %$% name)) {
+                tibble(processed_date = rep("unprocessed", prot_row$total_plates),
+                       tecan_file_url = rep(NA, prot_row$total_plates)) %>%
+                        write_csv(path_temp_csv, col_names = TRUE)
+                plates_processed <- drive_upload(media = path_temp_csv,
+                                                 path = drbl,
+                                                 type = "text/csv")
+        } else {
+                plates_processed <- protocol_folder_ls %>% filter(name == temp_csv)
+                #TODO: add same fail proof mechanims for the hamilton folder
+        }
+}
+
+protocols_get <- function(drive_folder, prot_gsheet, session, folder_url) {
         #Trigger variable to update the csv in the Google Sync folder for hami methods
         update_hami_csv <- FALSE
 
@@ -14,52 +36,52 @@ protocols_get <- function(drive_folder, prot_gsheet, session) {
 
 
         #Create directory and add directory link to spreadsheet if a protocol doesn't have its own
+        #TODO: create folders not existing
         for (i in (1:nrow(protocols))) {
                 prot_row <- protocols[i, ]
                 #TODO: Add another condition like the name is not empty
-                if (is.na(prot_row$folder_url)) {
-                        update_hami_csv <- TRUE
+
+                if (is.na(prot_row %>% "["(folder_url))) {
+
                         #Create the drive directory
                         # First check if the directory doesn't already exist
-                        tecan_folder_ls <- drive_ls(as_id(drive_folder), type = "folder")
+                        folder_ls <- drive_ls(as_id(drive_folder), type = "folder")
 
-                        if (!prot_row$name %in% tecan_folder_ls$name) {
+                        if (!prot_row$name %in% folder_ls$name) {
                                 drbl <- drive_mkdir(name = prot_row$name,
                                                     parent = as_id(drive_folder))
 
-                                hami_drbl <- drive_mkdir(name = prot_row$name,
-                                                         parent = as_id(if (is_dev_server(session)) protocols_hami_folder_dev
-                                                                        else protocols_hami_folder_prod))
-                        }
+                                if (tab_name == "tecan") {
+                                        hami_drbl <- drive_mkdir(name = prot_row$name,
+                                                                 parent = as_id(get_drive_url(session, "hami")))
+                                }
 
-                        else {
-                                drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
-                                hami_drbl <- tecan_folder_ls %>% filter(name == prot_row$name)
-                        }
-
-                        #Create the plates index
-                        stopifnot(is.integer(prot_row$total_plates))
-                        temp_csv <- str_interp("${prot_row$name} plates processed date.csv")
-                        path_temp_csv <- paste0("temp/",temp_csv)
-                        protocol_folder_ls <- drive_ls(drbl)
-
-                        if (!temp_csv %in% (protocol_folder_ls %$% name)) {
-                                tibble(processed_date = rep("unprocessed", prot_row$total_plates),
-                                       tecan_file_url = rep(NA, prot_row$total_plates)) %>%
-                                        write_csv(path_temp_csv, col_names = TRUE)
-                                plates_processed <- drive_upload(media = path_temp_csv,
-                                                                 path = drbl,
-                                                                 type = "text/csv")
                         } else {
-                                plates_processed <- protocol_folder_ls %>% filter(name == temp_csv)
-                                #TODO: add same fail proof mechanims for the hamilton folder
+                                drbl <- folder_ls %>%
+                                        filter(name == prot_row$name)
+
+                                hami_drbl <- folder_ls %>% filter(name == prot_row$name)
                         }
 
-                        # Get the new folder link
-                        links <- list(drbl, plates_processed, hami_drbl) %>%
-                                map_chr(dribble_get_link)
+                        if (tab_name == "tecan") {
+                                plates_processed <- get_plates_tracking_drbl(prot_row, drbl)
 
-                        colID <- gsheet_colID_from_tibble(protocols, "folder_url")
+                                # Get the new folder link
+                                links <- list(drbl, plates_processed, hami_drbl) %>%
+                                        map_chr(dribble_get_link)
+
+                                #Add links to protocols
+                                protocols[i, "plates_processed_url"] <- links[2]
+
+                                update_hami_csv <- TRUE
+
+                        } else if (tab_name == "ms") {
+                                links <- drbl %>% dribble_get_link()
+                        }
+
+                        protocols[i, folder_url] <- links[1]
+
+                        colID <- gsheet_colID_from_tibble(protocols, folder_url)
 
                         # insert folder and plates tracker url in the gsheet
                         gs_edit_cells(ss = prot_gsheet,
@@ -67,12 +89,9 @@ protocols_get <- function(drive_folder, prot_gsheet, session) {
                                       input = links,
                                       anchor = paste0(colID, i + 1),
                                       byrow = TRUE)
-
-                        #Add links to protocols
-                        protocols[i, "folder_url"] <- links[1]
-                        protocols[i, "plates_processed_url"] <- links[2]
                 }
         }
+
         if (update_hami_csv) {
                 tmp_path <- "temp/protocols_list.csv"
 
@@ -85,8 +104,7 @@ protocols_get <- function(drive_folder, prot_gsheet, session) {
                                   eol = "\r\n",
                                   row.names = FALSE)
 
-                {if (is_dev_server(session)) protocols_csv_dev
-                        else protocols_csv_prod} %>%
+                get_drive_url(session, experiments_csv) %>%
                         as_id() %>%
                         drive_update(media = tmp_path)
         }
@@ -184,23 +202,21 @@ protocols_set_modal <- function(input, file_name, custom_msg, protocols,required
 
 }
 
-move_drive_file <- function(protocols, prot_name, tecan, input) {
-        tecan$files %>%
-                filter(id == input$file) %>%
-                drive_mv(path = protocols %>%
+move_drive_file <- function(tecan_n, prot_name, instrument) {
+        folder_url <- paste0(instrument, "_folder_url")
+
+        tecan_n$files() %>%
+                filter(id == tecan_n$id()) %>%
+                drive_mv(path = tecan_n$protocols() %>%
                                  filter(name == prot_name) %>%
                                  pull(folder_url) %>%
-                                 as_id())
+                                 as_id()
+                         )
 }
 
-update_uis <- function(prot_name, tecan, file_id, session) {
-        # Switch UI to the protocol where this file was moved to
-        updateSelectInput(session = session,
-                          inputId = "protocol",
-                          selected = prot_name)
-
-        #Set which file to select after the files menu update
-        tecan$selected_file <- file_id
+update_selected <- function(prot_name, file_id) {
+        list(protocol = prot_name,
+             file_id = file_id)
 }
 
 render_pooling <- function(input, output, tecan_calculated) {

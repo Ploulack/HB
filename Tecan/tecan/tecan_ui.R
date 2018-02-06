@@ -1,46 +1,32 @@
 tecan_ui <- function(id) {
         ns <- NS(id)
-        source(file = "helpers/delete_file_button_module.R")
+        source(file = "helpers/delete_file_button_module.R"); source("helpers/ui_generics/select_file_ui.R")
 
         fluidPage(
                 sidebarPanel(width = 3,
+
                              #Conditional to only display two parameter inputs for relevant file type
                              conditionalPanel(
-                                     # condition = paste0("output['",ns("type"),"'] == 'DNA Quantification'" ),
                                      condition = "output.type == 'DNA Quantification'",
                                      ns = ns,
+
                                      fluidRow(
                                              column(4,textInput(ns("absorbance"),
                                                                 "Absorbance",
                                                                 value = 0.02,
                                                                 #width = "35%",
                                                                 placeholder = "in ug / (ml.cm)")),
+
                                              column(4, textInput(ns("path"),
                                                                  "Length",
                                                                  value = .19,
                                                                  #width = "35%",
                                                                  placeholder = "in cm"), offset = 1)
-                                     )),
+                                     )
+                             ),
+
                              #Conditional not to display the refresh / delete buttons until file list received from drive
-                             conditionalPanel(
-                                     # condition = paste0("input['", ns("file"), "'] != '", wait_msg, "'"),
-                                     condition = paste0("input.file != '", wait_msg, "'"),
-                                     ns = ns,
-                                     fluidRow(
-                                             actionButton(ns("refresh"),
-                                                          label = "Check for new files"),
-                                             delete_exp_files_ui(ns("delete_button"))
-                                     )),
-                             selectInput(ns("protocol"),
-                                         "Protocols",
-                             choices = "New", width = "70%"),
-                             fluidRow(
-                                     column(9, selectInput(ns("file"),
-                                                           "Latest Tecan Files",
-                                                           choices = wait_msg)),
-                                     column(1, actionButton(ns("go_file"),
-                                                           "Open")
-                                      )),
+                             select_file_ui(ns("tecan")),
                              tags$hr(),
                              conditionalPanel(
                                      # condition = paste0("output['",ns("type"),"'] == 'NADH Detection'" ),
@@ -49,11 +35,6 @@ tecan_ui <- function(id) {
                                      actionButton(inputId = ns("open_calibration"),
                                                   label = "Edit Concentrations")
                              )
-                             # ,
-                             # conditionalPanel(
-                             #         condition = paste0("output['",ns("type"),"'] != 'NADH Detection'"),
-                             #         tableOutput(ns("summary"))
-                             # )
                 ),
                 mainPanel(
                         titlePanel(

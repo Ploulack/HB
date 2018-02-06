@@ -1,7 +1,7 @@
 select_file_ui <- function(id) {
         ns <- NS(id)
 
-        sidebarPanel(width = 3,
+        tagList(
 
                      #Conditional not to display the refresh / delete buttons until file list received from drive
                      conditionalPanel(

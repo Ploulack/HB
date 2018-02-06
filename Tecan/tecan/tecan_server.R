@@ -6,12 +6,12 @@ tecan_server <- function(input, output, session) {
         source("registry/registry_helpers.R"); source("registry/registry_values.R")
         source("helpers/strings.R"); source("helpers/general.R")
         source("helpers/plates_helpers.R") ; source("mongo/db_values.R")
+        source("helpers/ui_generics/select_file_server.R")
 
         ns <- session$ns
         tecan_progress <- Progress$new()
 
-        drive_tecanURL <- {if (is_dev_server(session)) tecan_dev_drive_URL
-                else tecan_prod_drive_URL}
+        drive_tecanURL <- get_drive_url(session, "tecan")
 
         #Only initiate mongo connexion when needed
         db <- db_from_environment(session, collection = "lab_experiments")
@@ -20,124 +20,93 @@ tecan_server <- function(input, output, session) {
         tecan_progress$inc(.1, detail = "Accessing registry.")
         registry <- registry_key_names(registry_url, registry_sheets)
 
-        #build the protocol tibble from the spread sheet
-        if (!exists("protocols")) {
-                tecan_progress$inc(.1, detail = "Accessing experiments.")
-                source("protocols/protocols_functions.R")
-                prot_gsheet <- {if (is_dev_server(session)) gs_url(protocols_sheet_dev)
-                        else gs_url(protocols_sheet_prod)}
-                protocols <- reactiveVal(protocols_get(drive_tecanURL, prot_gsheet, session = session))
-        }
 
-        # Update the Protocol select input
-        updateSelectInput(session,
-                          inputId = "protocol",
-                          choices = "New" %>% append(protocols()$name),
-                          selected = "New")
+        selected <- reactiveVal()
+        tecan_n <- callModule(module = select_file,
+                              id = "tecan",
+                              progress = tecan_progress,
+                              drive_url = drive_tecanURL,
+                              selected = selected
+        )
 
 
-        #Xml extracted data temporary container.
-        experiment <- reactiveValues() #TODO: Remove and replace with the tecan_file reactive values container...
+        tecan_n$raw <- reactiveVal(NULL)
+        tecan_n$experiment <- reactiveVal(NULL)
+        tecan_n$calculated <- reactiveVal(NULL)
 
         db_files <- reactiveValues()
-
-        #On change of selected protocol, update file list from drive
-        observeEvent(input$protocol, {
-                if (input$protocol == "New")
-                        drive_url <- drive_tecanURL
-                else
-                        drive_url <- protocols() %>%
-                                filter(name == input$protocol) %$%
-                                folder_url
-                tecan$files <- drive_url %>%
-                        googledrive::as_id() %>%
-                        get_ordered_filenames_from_drive()
-        }, ignoreInit = TRUE)
-
-        #Container for ordered drive folder file names
-        tecan <- reactiveValues(files = drive_tecanURL %>%
-                                        as_id() %>%
-                                        get_ordered_filenames_from_drive(progress = tecan_progress),
-                                selected_file = NULL,
-                                selected_protocol = NULL)
-        removed_files <- reactiveVal(NULL)
-
-        #Generate the file selection list
-        choiceFiles <- eventReactive(c(input$refresh, # User checks for new files
-                                       removed_files(), # User has removed files
-                                       tecan$files), # User has changed files
-                                     {
-                                             dat <- tecan$files %>%
-                                             filter(id != if (is.null(removed_files())) ""
-                                                    else removed_files()) %>%
-                                             select(id, exp_date)
-
-                                     dat$id %>%
-                                             set_names(dat$exp_date)
-                                     })
-
-        #Display the file selection list
-        observeEvent(c(choiceFiles(), input$refresh), {
-                choices <- choiceFiles()
-                updateSelectInput(session, "file",
-                                  choices = choices,
-                                  selected = ifelse(input$refresh == 0,
-                                                    if (is.null(tecan$selected_file)) head(choices,1)
-                                                    else tecan$selected_file,
-                                                    input$file))
-                tecan$selected_file <- NULL
-                if (!is.null(choices)) tecan_progress$close()
-        })
-
-        #Create and fill the tecan_file all inclusive reactive container
-        tecan_file <- reactiveValues()
-        observeEvent(experiment$raw, {
-                tecan_file$file <- input$file
-                tecan_file$file_dribble <-  tecan$files %>% filter(id == input$file)
-                tecan_file$samples <-  experiment$raw$data$Batch_1$Measures$Sample
-                tecan_file$measures <-  experiment$raw$data$Batch_1$Measures
-                tecan_file$type <-  experiment$raw$type
-                tecan_file$user_msg <- experiment$raw$user_msg
-                tecan_file$data <-  experiment$raw$data
-        }, priority = 1)
 
         #A switch to keep track of db inserts
         data_tagged_and_saved <- reactiveVal(value = FALSE)
 
-        #Delete file button module
-        callModule(module = delete_exp_files,
-                   id = "delete_button",
-                   file = list(id = tecan_file$file_dribble$id,
-                               name = tecan_file$file_dribble$name),
-                   db = db,
-                   files_list = choiceFiles(),
-                   removed_files)
-
         #On button Go pressed, extract data from the xml currently listed
-        observeEvent(input$go_file, {
+        observeEvent(tecan_n$go_file(), {
                 #Prevent re-download from Google Drive when the select files input is initialized or updated,
-                if (input$file == wait_msg) return()
-                else if (input$file == "") {
+                if (tecan_n$id() == wait_msg) return()
+                else if (tecan_n$id() == "") {
                         showModal(modalDialog(
                                 title = "No File",
                                 paste0("There's no files in specified Google Drive folder: ",
                                        "/HB/Tecan")
                         ))
                 } else {
-                        print(paste0("Extracting file : ", input$file))
-                        experiment$raw <- tecan_extract(input$file, tecan$files)
+                        print(paste0("Extracting file : ", tecan_n$file_dribble()$name))
+                        tecan_dat <- tecan_extract(tecan_n$id(), tecan_n$files())
+                        tecan_n$raw(tecan_dat)
+                        # experiment$raw <- tecan_extract(input$file, tecan$files)
                         data_tagged_and_saved(FALSE)
+                }
+        }, priority = 3)
+
+        # Todo: une horreur, tout reprendre clean
+        observeEvent(c(input$absorbance,input$path, tecan_n$raw(), data_tagged_and_saved()),{
+                if (is.null(tecan_n$raw()$data) ) return()
+
+                absorbance <- as.double(input$absorbance)
+                path <- as.double(input$path)
+
+                if (tecan_n$raw()$type == "NADH Detection") {
+                        nadh_detection(nadh = tecan_n$raw()$data$Batch_1$Measures,
+                                       cal_conc = calibration_concentrations,
+                                       input = input,
+                                       output = output,
+                                       ns = ns)
+
+                } else {
+                        # TODO: In case of DNA quantification since results are only displayed after tagging,
+                        # this could run only after tagging...OR remove the data_tagged trigger of the observer.
+                        if (tecan_n$raw()$type == "DNA Quantification") {
+
+                                #patch: if experiment has message:
+
+                                if (is.null(tecan_n$raw()$user_msg)) {
+                                        tecan_n$calculated(
+                                                calc_values(tecan_n$raw()$data,
+                                                            absorbance,
+                                                            path)
+                                        )
+                                } else {
+                                        tecan_n$calculated(
+                                                calc_values(tecan_n$raw()$data,
+                                                            absorbance,
+                                                            path,
+                                                            water_well_pos = NULL,
+                                                            water_readings = water_readings)
+                                        )
+                                }
+                        }
                 }
         }, priority = 2)
 
         #Get db records attached to new file
-        file_record <- eventReactive(input$go_file, {
-                shiny::validate(need(!is.null(experiment$raw$type),
+        file_record <- eventReactive(tecan_n$go_file(), {
+                shiny::validate(need(!is.null(tecan_n$raw()$type),
+                                     # shiny::validate(need(!is.null(experiment$raw$type),
                                      message = FALSE))
 
                 #Display db ui only if File is not kinetic...
-                if (experiment$raw$type %in% tecan_protocols_with_db) {
-                        return(mongo_file_entry(db, input$file))
+                if (tecan_n$raw()$type %in% tecan_protocols_with_db) {
+                        return(mongo_file_entry(db, tecan_n$id()))
                 } else {
                         return(list("entry_exists" = FALSE))
                 }
@@ -145,22 +114,24 @@ tecan_server <- function(input, output, session) {
 
         #### PROTOCOLS ####
         #On first opening, move files to their appropriate folders
-        observeEvent(experiment$raw, {
-                unitary_folder <- protocols()$name[1]
-                if (input$protocol != "New") return()
-                if (is.null(experiment$raw$user_msg) || str_length(experiment$raw$user_msg) == 0) {
+        observeEvent(tecan_n$raw(), {
+                unitary_folder <- tecan_n$protocols()$name[1]
+                if (tecan_n$protocol() != "New") return()
+                if (is.null(tecan_n$raw()$user_msg) || str_length(tecan_n$raw()$user_msg) == 0) {
                         progress_prot_change <- Progress$new()
                         progress_prot_change$inc(.5, str_interp("Moving file to ${unitary_folder} drive folder."))
-                        move_drive_file(protocols(), prot_name = unitary_folder, tecan, input)
+                        move_drive_file(tecan_n, prot_name = unitary_folder, "tecan")
+
                         progress_prot_change$inc(.5, str_interp("Displaying list of ${unitary_folder} name."))
-                        update_uis("Unitary", tecan = tecan, file_id = input$file, session = session)
+                        selected(update_selected("Unitary", tecan_n$id()))
+                        # update_uis("Unitary", tecan_n, session = session)
                         progress_prot_change$close()
                 } else {
                         #If the Tecan file includes a custom msg popup choice to the user to do the matching
                         protocols_set_modal(input = input,
-                                            tecan_file$file_dribble$name,
-                                            experiment$raw$user_msg,
-                                            protocols = protocols(),
+                                            tecan_n$file_dribble()$name,
+                                            tecan_n$raw()$user_msg,
+                                            protocols = tecan_n$protocols(),
                                             session = session)
                 }
         })
@@ -168,9 +139,10 @@ tecan_server <- function(input, output, session) {
         #Update choices of plates in modal dialog
         observeEvent(input$set_protocol, {
 
-                if (!input$set_protocol %in% protocols()$name) return()
-                selected_prot <- protocols() %>%
+                if (!input$set_protocol %in% tecan_n$protocols()$name) return()
+                selected_prot <- tecan_n$protocols() %>%
                         filter(name == input$set_protocol)
+
                 proced_plates <- selected_prot %$%
                         processed_plates %>%
                         str_split(", ") %>%
@@ -186,7 +158,7 @@ tecan_server <- function(input, output, session) {
                                   choices = plate_choices)
                 render_pooling(input,
                                output,
-                               experiment$calculated$Results)
+                               tecan_n$calculated()$Results)
 
         }, ignoreInit = TRUE)
 
@@ -196,17 +168,20 @@ tecan_server <- function(input, output, session) {
                 #TODO: Add checks on the inputs...
 
                 # Store the pooling result from the users final settings in the modal
-                experiment$pool <- plate_pooling(experiment$calculated$Results,
-                              well_volume = input$well_volume,
-                              min_dw_conc = input$dw_min_conc,
-                              min_wells_nb = input$min_nb_wells)
+                tecan_n$pool <- plate_pooling(tecan_n$calculated()$Results,
+                                              well_volume = input$well_volume,
+                                              min_dw_conc = input$dw_min_conc,
+                                              min_wells_nb = input$min_nb_wells)
 
                 # Close the dialog popup
                 removeModal()
 
-                experiment$protocol <- input$set_protocol
-                experiment$plate <- input$set_plate_nb
-                selected_prot <- protocols() %>%
+                # experiment$protocol <- input$set_protocol
+                # TODO: Create another container than tecan_n for the pooling stuff, this is dangerous:
+                # on a change of file, this data is going to stick if tecan_n no re-initialized....
+                tecan_n$experiment <- reactiveVal(input$set_protocol)
+                tecan_n$plate <- input$set_plate_nb
+                selected_prot <- tecan_n$protocols() %>%
                         filter(name == input$set_protocol)
                 #Update protocols gsheet with new plate
                 #Add new plate to string
@@ -222,16 +197,18 @@ tecan_server <- function(input, output, session) {
                         as.character() %>%
                         str_c(collapse = ", ")
 
-                tmp_prot <- protocols()
+                tmp_prot <- tecan_n$protocols()
                 tmp_prot[selected_prot$index, "processed_plates"] <- updated_plates
-                protocols(tmp_prot)
+                tecan_n$protocols(tmp_prot)
 
-                selected_prot <- protocols() %>%
+                selected_prot <- tecan_n$protocols() %>%
                         filter(name == input$set_protocol)
-                #Get the A, B, ..Z col ID for the gsheet insertion
+
+                # ColID gets the A, B, ..Z col ID for the gsheet insertion
                 # More resilient to gsheet columns reordering
-                colID <- gsheet_colID_from_tibble(protocols(), "processed_plates")
-                gs_edit_cells(ss = prot_gsheet,
+                colID <- gsheet_colID_from_tibble(tecan_n$protocols(), "processed_plates")
+
+                gs_edit_cells(ss = tecan_n$protocols_gsheet,
                               ws = 1,
                               #TODO: tie the column to the procols tibble's column name...
                               anchor = paste0(colID, selected_prot$index + 1),
@@ -252,7 +229,7 @@ tecan_server <- function(input, output, session) {
                 plates[(input$set_plate_nb %>% as.integer()), ] <- tibble(
                         processed_date = Sys.time() %>%
                                 force_tz(tzone = "EST") %>% as.character(),
-                        tecan_file_url = tecan_file$file_dribble %>%
+                        tecan_file_url = tecan_n$file_dribble() %>%
                                 dribble_get_link())
                 write_csv(plates, csv_path)
 
@@ -260,9 +237,10 @@ tecan_server <- function(input, output, session) {
                              media = csv_path)
 
                 #Move Tecan file to protocol folder
-                move_drive_file(protocols(), prot_name = input$set_protocol, tecan, input)
+                move_drive_file(tecan_n, prot_name = input$set_protocol, "tecan")
                 #Set user file selectInput on the same file
-                update_uis(prot_name = input$set_protocol, tecan = tecan, file_id = input$file, session = session)
+                selected(update_selected(input$set_protocol, tecan_n$id()))
+                # update_uis(prot_name = input$set_protocol, tecan_n, session = session)
 
                 #Calculate water volume to normalize and generate the csv files for hamilton then upload to drive
                 # experiment$calculated$Results <- tecan_calc_water_vol(experiment$calculated$Results,
@@ -270,7 +248,7 @@ tecan_server <- function(input, output, session) {
                 #                                                       target_concentration = input$target_concentration)
 
                 tmp_norm_csv <- str_interp("temp/${input$set_protocol}__plate_${input$set_plate_nb}.csv")
-                experiment$pool$plate_pooled %>%
+                tecan_n$pool$plate_pooled %>%
                         select(Sample, Aspirate_To_Pool = Pool_Volume) %>%
                         filter(!is.na(Aspirate_To_Pool)) %>%
                         mutate(Aspirate_To_Pool = round(Aspirate_To_Pool, 1)) %>%
@@ -295,13 +273,18 @@ tecan_server <- function(input, output, session) {
         note_had_characters <- reactiveVal(FALSE)
 
         #This handles the sample taggings tecan file types that require it before db writing
-        observeEvent(input$go_file, {
+        # tecan_file$samples <-  experiment$raw$data$Batch_1$Measures$Sample
+        # tecan_file$measures <-  experiment$raw$data$Batch_1$Measures
+
+        observeEvent(tecan_n$go_file(), {
                 shiny::validate(need(!is.null(registry) &&
-                                             !is.null(tecan_file$samples) &&
-                                             !is.null(tecan_file$type),
+                                             !is.null(tecan_n$raw()$data$Batch_1$Measures$Sample ) &&
+                                             !is.null(tecan_n$raw()$type),
                                      message = "Something wrong with registry or tecan file"))
 
                 removeUI(selector = str_interp("#${ns('note_widget')}"))
+
+                measures <- tecan_n$raw()$data$Batch_1$Measures
 
                 #Prepare the samples tibble in case there's a db record...
                 if (file_record()$entry_exists) {
@@ -313,8 +296,9 @@ tecan_server <- function(input, output, session) {
                         #TODO: check if just passing samples() works downstream in subsequence db updates
                         # = check that values are correctly 'kept' with existing app udpates.
                         # TODO: eventually remove this code once all files have been processed...
+
                         if (!"Value" %in% (samples() %>% colnames())) {
-                                measures <- experiment$raw$data$Batch_1$Measures
+
                                 temp_tbl <- samples()
                                 #Check that the water samples has already been added or not
                                 if (!measures$Sample[1] %in% temp_tbl$Sample) {
@@ -325,34 +309,35 @@ tecan_server <- function(input, output, session) {
                                         left_join(measures, by = "Sample") %>%
                                         select(Sample, Value, Key)
                                 samples(temp_tbl)
-                                db_update_entry(db, tecan_file, samples(),
+                                db_update_entry(db, tecan_n, samples(),
                                                 notif_msg = str_interp(
-                                                        "Added Values to db entry for ${tecan_file$file_dribble$name}"))
+                                                        "Added Values to db entry for ${tecan_n$file_dribble()$name}"))
                         }
                 } else {
-                        if (tecan_file$type == tecan_protocols_with_db[1]) {
-                                samples(tecan_file$measures %>%
+                        if (tecan_n$raw()$type == tecan_protocols_with_db[1]) {
+
+                                samples(measures %>%
                                                 mutate(Key = if_else(row_number() == 1 &
-                                                                             (is.null(tecan_file$user_msg) ||
-                                                                                      tecan_file$user_msg == ""),
+                                                                             (is.null(tecan_n$raw()$user_msg) ||
+                                                                                      tecan_n$raw()$user_msg == ""),
                                                                      "Water",
                                                                      ""))
-                                        )
+                                )
                         }
                         # This is for H2O2 measurement. Find the highest value, from that
                         # determine calibration values and sample values
-                        else if (tecan_file$type == tecan_protocols_with_db[2]) {
+                        else if (tecan_n$raw()$type == tecan_protocols_with_db[2]) {
                                 # Select non-calibration samples
-                                max_idx <- tecan_file$measures$Value %>%
+                                max_idx <- measures$Value %>%
                                         which.max()
-                                measured <- (max_idx + 1):length(tecan_file$measures$Value)
+                                measured <- (max_idx + 1):length(measures$Value)
 
                                 samples(tecan_file$measures[measured, ] %>%
                                                 mutate(Key = ""))
                         } else return()
 
                         # Initiate the 'samples' reactiveVal with those samples
-                        db_create_entry(db, tecan_file, samples())
+                        db_create_entry(db, tecan_n, samples())
                 }
 
                 #Display the note text input
@@ -369,8 +354,8 @@ tecan_server <- function(input, output, session) {
 
                 # Don't diplay sample tagging for plates of an experiment / protocol
                 # TODO: actually display information about what's in the plate
-                if (is.null(tecan_file$user_msg) ||
-                     tecan_file$user_msg == "")
+                if (is.null(tecan_n$raw()$user_msg) ||
+                    tecan_n$raw()$user_msg == "")
                         # for each sample, display the widget
                         walk2(samples()$Sample,samples()$Key, ~ {
                                 # removeUI(selector = paste0("#", ns(.x)))
@@ -380,17 +365,18 @@ tecan_server <- function(input, output, session) {
                                                                     sample_well = .x,
                                                                     sample_key = .y,
                                                                     samples = samples,
-                                                                    tecan_file,
+                                                                    tecan_n,
                                                                     db,
                                                                     registry,
-                                                                    go_file = reactive(input$go_file))
+                                                                    go_file = reactive(tecan_n$go_file())
+                                )
 
                                 insertUI(selector = paste0("#", ns("widgets_bar")),
                                          where = "beforeEnd",
                                          ui = sample_widget_ui(id = ns(paste0(input$file, "-", .x)),
                                                                .x,
                                                                .y,
-                                                               tecan_file,
+                                                               tecan_n,
                                                                registry)
                                 )
                         })
@@ -410,7 +396,7 @@ tecan_server <- function(input, output, session) {
                         }
                         if (str_length(input_note()) > 0) note_had_characters(TRUE)
                         else note_had_characters(FALSE)
-                        str1 <- str_interp('{"file" : "${tecan_file$file}"}')
+                        str1 <- str_interp('{"file" : "${tecan_n$id()}"}')
                         str2 <- str_interp('{"$set" : {"note" : "${input_note()}"}}')
                         note_upd <- db$update(str1, str2)
                         if (note_upd$modifiedCount == 1) {
@@ -420,109 +406,66 @@ tecan_server <- function(input, output, session) {
                         }
                 }, ignoreInit = TRUE)
 
-                #Gather the user entered keys for each sample
-                # key_inputs <- reactive({
-                #         map_chr(samples()$Sample, ~ {
-                #                 if (is.null(control_samples[[.x]]) ||
-                #                     is.null(control_samples[[.x]]())
-                #                     ) return("")
-                #                 else return(control_samples[[.x]]())
-                #                 })
-                # })
-
                 observeEvent(samples(), {
                         if (any(samples()$Key == "")) data_tagged_and_saved(FALSE)
                         else data_tagged_and_saved(TRUE)
                 })
 
-                # observeEvent(key_inputs(), {
-                #         if (any(key_inputs() == "")) data_tagged_and_saved(FALSE)
-                #         else data_tagged_and_saved(TRUE)
-                # })
 
         }, ignoreInit = TRUE)
 
         # When Tecan file belongs to an experiment / protocol
         # add experiment and plate nb to the db entry
-        observeEvent(experiment$protocol, {
-                if (is.null(experiment$protocol)) return()
+        observeEvent(tecan_n$experiment(), {
+                if (is.null(tecan_n$experiment())) return()
                 update_str <- str_interp('{"$set":
                                          {"experiment": {
-                                         "name" : "${experiment$protocol}",
+                                         "name" : "${tecan_n$experiment()}",
                                          "plate_nb" : "${input$set_plate_nb}"}}}')
-                mongo_update_file(db, tecan_file$file, upd_str = update_str)
+                mongo_update_file(db, tecan_n$id(), upd_str = update_str)
         }, ignoreInit = TRUE)
 
         #### DISPLAY ####
         # Tell user if it's a 260 or 600nm
-        output$type <- eventReactive(experiment$raw, {
-                str_interp("${experiment$raw$type} - ${file_date(tecan_file$file_dribble$name)}")
+        output$type <- eventReactive(tecan_n$raw(), {
+
+                str_interp("${tecan_n$raw()$type} - ${file_date(tecan_n$file_dribble()$name)}")
         })
         outputOptions(output, "type", suspendWhenHidden = FALSE)
 
-        # Todo: une horreur, tout reprendre clean
-        observeEvent(c(input$absorbance,input$path, experiment$raw, data_tagged_and_saved()),{
-                if (is.null(experiment$raw$data) ) return()
 
-                absorbance <- as.double(input$absorbance)
-                path <- as.double(input$path)
 
-                if (experiment$raw$type == "NADH Detection") {
-                        nadh_detection(nadh = experiment$raw$data$Batch_1$Measures,
-                                       cal_conc = calibration_concentrations,
-                                       input = input,
-                                       output = output,
-                                       ns = ns)
-
-                } else {
-                        # TODO: In case of DNA quantification since results are only displayed after tagging,
-                        # this could run only after tagging...OR remove the data_tagged trigger of the observer.
-                        if (experiment$raw$type == "DNA Quantification") {
-                                #patch: if experiment has message
-
-                                if (is.null(experiment$raw$user_msg))
-                                        experiment$calculated <- calc_values(experiment$raw$data,
-                                                                             absorbance,
-                                                                             path)
-                                else experiment$calculated <- calc_values(experiment$raw$data,
-                                                                          absorbance,
-                                                                          path,
-                                                                          water_well_pos = NULL,
-                                                                          water_readings = water_readings)
-                        }
-                }
-        })
         #A centralize display switch for the plot and tables
         is_displayed <- reactive({
-                if (experiment$raw$type == tecan_protocols[1] %>%
-                                            names()) return(TRUE)
+                if (tecan_n$raw()$type == tecan_protocols[1] %>%
+                    names()) return(TRUE)
                 (data_tagged_and_saved() ||
-                                !(is.null(experiment$raw$user_msg) ||
-                                                str_length(experiment$raw$user_msg) == 0)) &&
-                        experiment$raw$type == tecan_protocols[2] %>%
-                                                          names()
+                                !(is.null(tecan_n$raw()$user_msg) ||
+                                          str_length(tecan_n$raw()$user_msg) == 0)) &&
+                        tecan_n$raw()$type == tecan_protocols[2] %>%
+                        names()
         })
 
         output$summary <- renderTable({
-                if (is.null(experiment$raw$type)) return()
+                if (is.null(tecan_n$raw()$type)) return()
                 if (!is_displayed()) return()
 
-                if (experiment$raw$type == "DNA Quantification") {
-                        experiment$calculated$Results
+                if (tecan_n$raw()$type == "DNA Quantification") {
+                        tecan_n$calculated()$Results
                 } else {
-                        experiment$raw$data$Batch_1$Measures
+                        tecan_n$raw()$data$Batch_1$Measures
                 }
         })
 
         output$hist <- renderPlot({
-                if (is.null(experiment$raw$type)) return()
+                if (is.null(tecan_n$raw()$type)) return()
                 if (!is_displayed()) return()
-                is_DNAquant <- experiment$raw$type == "DNA Quantification"
+                is_DNAquant <- tecan_n$raw()$type == "DNA Quantification"
 
                 if (is_DNAquant) {
-                        df <- experiment$calculated$Results
+                        df <- tecan_n$calculated()$Results
                 } else {
-                        df <- experiment$raw$data$Batch_1$Measures
+                        df <- tecan_n$raw()$data$Batch_1$Measures
                 }
 
                 ggplot(df) +
@@ -553,13 +496,12 @@ tecan_server <- function(input, output, session) {
         })
 
         output$batch <- renderTable({
-                if (is.null(experiment$raw$type)) return()
+                if (is.null(tecan_n$raw()$type)) return()
                 if (!is_displayed()) return()
-                if (experiment$raw$type == "DNA Quantification") {
-                        return(experiment$calculated$Table)
+                if (tecan_n$raw()$type == "DNA Quantification") {
+                        return(tecan_n$calculated()$Table)
                 } else {
                         NULL
                 }
         })
-
 }
