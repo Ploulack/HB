@@ -1,7 +1,8 @@
 tecan_server <- function(input, output, session) {
         library(shiny); library(stringr); library(purrr); library(magrittr)
+
         source("tecan/tecan_extract.R"); source("tecan/tecan_values.R")
-        source("drive_helpers.R"); source("helpers/delete_file_button_module.R")
+        source("helpers/drive_helpers.R"); source("helpers/delete_file_button_module.R")
         source("helpers/mongo_helpers.R"); source("tecan/tecan_nadh.R")
         source("registry/registry_helpers.R"); source("registry/registry_values.R")
         source("helpers/strings.R"); source("helpers/general.R")
@@ -176,13 +177,13 @@ tecan_server <- function(input, output, session) {
                 # Close the dialog popup
                 removeModal()
 
-                # experiment$protocol <- input$set_protocol
                 # TODO: Create another container than tecan_n for the pooling stuff, this is dangerous:
                 # on a change of file, this data is going to stick if tecan_n no re-initialized....
                 tecan_n$experiment <- reactiveVal(input$set_protocol)
                 tecan_n$plate <- input$set_plate_nb
                 selected_prot <- tecan_n$protocols() %>%
                         filter(name == input$set_protocol)
+
                 #Update protocols gsheet with new plate
                 #Add new plate to string
                 if (is.na(selected_prot$processed_plates))
@@ -238,16 +239,14 @@ tecan_server <- function(input, output, session) {
 
                 #Move Tecan file to protocol folder
                 move_drive_file(tecan_n, prot_name = input$set_protocol, "tecan")
+
                 #Set user file selectInput on the same file
                 selected(update_selected(input$set_protocol, tecan_n$id()))
                 # update_uis(prot_name = input$set_protocol, tecan_n, session = session)
 
                 #Calculate water volume to normalize and generate the csv files for hamilton then upload to drive
-                # experiment$calculated$Results <- tecan_calc_water_vol(experiment$calculated$Results,
-                #                                                       well_volume = input$well_volume,
-                #                                                       target_concentration = input$target_concentration)
-
                 tmp_norm_csv <- str_interp("temp/${input$set_protocol}__plate_${input$set_plate_nb}.csv")
+
                 tecan_n$pool$plate_pooled %>%
                         select(Sample, Aspirate_To_Pool = Pool_Volume) %>%
                         filter(!is.na(Aspirate_To_Pool)) %>%
@@ -425,15 +424,16 @@ tecan_server <- function(input, output, session) {
                 mongo_update_file(db, tecan_n$id(), upd_str = update_str)
         }, ignoreInit = TRUE)
 
-        #### DISPLAY ####
-        # Tell user if it's a 260 or 600nm
         output$type <- eventReactive(tecan_n$raw(), {
-
-                str_interp("${tecan_n$raw()$type} - ${file_date(tecan_n$file_dribble()$name)}")
+                tecan_n$raw()$type
         })
         outputOptions(output, "type", suspendWhenHidden = FALSE)
 
-
+        #### DISPLAY ####
+        # Tell user if it's a 260 or 600nm
+        output$title <- eventReactive(tecan_n$raw(), {
+                str_interp("${tecan_n$raw()$type} - ${file_date(tecan_n$file_dribble()$name)}")
+        })
 
         #A centralize display switch for the plot and tables
         is_displayed <- reactive({

@@ -6,24 +6,7 @@ tecan_ui <- function(id) {
                 sidebarPanel(width = 3,
 
                              #Conditional to only display two parameter inputs for relevant file type
-                             conditionalPanel(
-                                     condition = "output.type == 'DNA Quantification'",
-                                     ns = ns,
-
-                                     fluidRow(
-                                             column(4,textInput(ns("absorbance"),
-                                                                "Absorbance",
-                                                                value = 0.02,
-                                                                #width = "35%",
-                                                                placeholder = "in ug / (ml.cm)")),
-
-                                             column(4, textInput(ns("path"),
-                                                                 "Length",
-                                                                 value = .19,
-                                                                 #width = "35%",
-                                                                 placeholder = "in cm"), offset = 1)
-                                     )
-                             ),
+                             # condition = "output.type == 'DNA Quantification'",
 
                              #Conditional not to display the refresh / delete buttons until file list received from drive
                              select_file_ui(ns("tecan")),
@@ -38,7 +21,7 @@ tecan_ui <- function(id) {
                 ),
                 mainPanel(
                         titlePanel(
-                                textOutput(ns("type"))
+                                textOutput(ns("title"))
                         ),
                         fluidRow(tags$div(id = ns("widgets_bar"),
                                           tags$hr())),

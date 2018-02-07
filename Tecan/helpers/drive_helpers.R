@@ -1,6 +1,12 @@
 library(stringr)
 library(lubridate)
 
+dribble_get_link <- function(dribble) {
+        dribble %>%
+                '[['("drive_resource") %>%
+                '[['(1) %>%
+                '[['("webViewLink")
+}
 
 file_date <- function(file_name, type = "tecan") {
         if (type == "tecan") {
@@ -30,4 +36,25 @@ get_ordered_filenames_from_drive <- function(drive_dir,
                 arrange(desc(exp_date))
         # %>%
         #         head(30)
+}
+
+
+drive_create_or_get_folder <- function(parent_folder, folder_name) {
+        assert_all_are_non_missing_nor_empty_character(c(parent_folder, folder_name))
+
+        # Get parent folder listing
+        parent_folder_ls <- parent_folder %>%
+                as_id() %>%
+                drive_ls(type = "folder")
+
+        # First check if the directory doesn't already exist...
+        if (!folder_name %in% parent_folder_ls$name) {
+                #...create it if not
+                drbl <- drive_mkdir(name = folder_name,
+                                    parent = as_id(parent_folder))
+        } else {
+                # ... get the dribble if yes
+                drbl <- parent_folder_ls %>%
+                        filter(name == folder_name)
+        }
 }

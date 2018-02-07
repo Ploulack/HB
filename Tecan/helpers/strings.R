@@ -26,13 +26,6 @@ first_unused <- function(used_labels = NULL) {
         }
 }
 
-dribble_get_link <- function(dribble) {
-                dribble %>%
-                '[['("drive_resource") %>%
-                '[['(1) %>%
-                '[['("webViewLink")
-}
-
 gsheet_colID_from_tibble <- function(tbl, tbl_col) {
 
         stopifnot(ncol(tbl) <= 26); stopifnot(is_tibble(tbl))

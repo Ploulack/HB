@@ -20,9 +20,4 @@ ms_server <- function(input, output, session) {
 
         output$protocol <- renderTable(ms$protocols())
 
-        observeEvent(ms$go_file(), {
-                browser()
-        })
-
-
 }

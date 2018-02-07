@@ -24,10 +24,11 @@ get_plates_tracking_drbl <- function(prot_row, drbl) {
         }
 }
 
-protocols_get <- function(drive_folder, prot_gsheet, session, folder_url) {
+protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
         #Trigger variable to update the csv in the Google Sync folder for hami methods
         update_hami_csv <- FALSE
 
+        folder_url <- paste0(tab_name,"_folder_url")
         protocols <- prot_gsheet %>%
                 gs_read() %>%
                 mutate(date_finished = lubridate::dmy(date_finished)) %>%
@@ -39,44 +40,45 @@ protocols_get <- function(drive_folder, prot_gsheet, session, folder_url) {
         #TODO: create folders not existing
         for (i in (1:nrow(protocols))) {
                 prot_row <- protocols[i, ]
-                #TODO: Add another condition like the name is not empty
+
+                #TODO: Add a condition like the name is not empty
 
                 if (is.na(prot_row %>% "["(folder_url))) {
+                        browser()
 
-                        #Create the drive directory
-                        # First check if the directory doesn't already exist
-                        folder_ls <- drive_ls(as_id(drive_folder), type = "folder")
+                        drbl <- drive_create_or_get_folder(parent_folder = drive_folder,
+                                                   folder_name = prot_row$name)
 
-                        if (!prot_row$name %in% folder_ls$name) {
-                                drbl <- drive_mkdir(name = prot_row$name,
-                                                    parent = as_id(drive_folder))
+                        # Check if the hamilton folder link exists or not
+                        if (tab_name == "tecan") {
+                                if (is.na(prot_row$hami_folder_url)) {
 
-                                if (tab_name == "tecan") {
-                                        hami_drbl <- drive_mkdir(name = prot_row$name,
-                                                                 parent = as_id(get_drive_url(session, "hami")))
+                                        hami_drbl <- drive_create_or_get_folder(get_drive_url(session, "hami"),
+                                                                                prot_row$name)
+                                        #Add hamilton folder link to current protocols tibble
+                                        protocols[i, "hami_folder_url"] <- dribble_get_link(hami_drbl)
+                                } else {
+                                        hami_drbl <- NULL
                                 }
-
-                        } else {
-                                drbl <- folder_ls %>%
-                                        filter(name == prot_row$name)
-
-                                hami_drbl <- folder_ls %>% filter(name == prot_row$name)
                         }
 
                         if (tab_name == "tecan") {
                                 plates_processed <- get_plates_tracking_drbl(prot_row, drbl)
+                                stopifnot(is_dribble(plates_processed))
 
                                 # Get the new folder link
                                 links <- list(drbl, plates_processed, hami_drbl) %>%
+                                        keep(~!is.null(.)) %>%
                                         map_chr(dribble_get_link)
 
-                                #Add links to protocols
+                                #Add processed plate tracking csv link to current protocols tibble
                                 protocols[i, "plates_processed_url"] <- links[2]
 
                                 update_hami_csv <- TRUE
 
                         } else if (tab_name == "ms") {
-                                links <- drbl %>% dribble_get_link()
+                                links <- drbl %>%
+                                        dribble_get_link()
                         }
 
                         protocols[i, folder_url] <- links[1]
@@ -104,7 +106,7 @@ protocols_get <- function(drive_folder, prot_gsheet, session, folder_url) {
                                   eol = "\r\n",
                                   row.names = FALSE)
 
-                get_drive_url(session, experiments_csv) %>%
+                get_drive_url(session, "experiments_csv") %>%
                         as_id() %>%
                         drive_update(media = tmp_path)
         }

@@ -1,7 +1,7 @@
 gel_server <- function(input, output, session, gtoken) {
         library(jpeg);library(grid);library(magrittr); library(magick); library(glue)
         source("gel/gel_values.R")
-        source("drive_helpers.R")
+        source("helpers/drive_helpers.R")
         source("registry/registry_helpers.R")
         source("registry/registry_values.R")
         source("helpers/strings.R")

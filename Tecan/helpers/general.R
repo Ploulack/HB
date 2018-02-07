@@ -24,6 +24,7 @@ get_drive_url <- function(session, name) {
                        else trash_prod_drive_URL},
                ms = ifelse(is_dev, ms_dev_drive_url, ms_prod_drive_url),
                hami = ifelse(is_dev, protocols_hami_folder_dev, protocols_hami_folder_prod),
+               experiments = ifelse(is_dev, protocols_sheet_dev, protocols_sheet_prod),
                experiments_csv = ifelse(is_dev, protocols_csv_dev, protocols_csv_prod),
                tecan = ifelse(is_dev, tecan_dev_drive_URL, tecan_prod_drive_URL)
                )

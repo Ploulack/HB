@@ -1,7 +1,7 @@
 require(lubridate); library(xml2)
 require(stringr)
 
-source("drive_helpers.R")
+source("helpers/drive_helpers.R")
 
 #To extract custom field from tecan file used to tie it to workflows
 tecan_custom_msg <- function(tecan) {

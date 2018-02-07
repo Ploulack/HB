@@ -1,3 +1,5 @@
+source("helpers/general.R")
+
 select_file <- function(input,
                         output,
                         session,
@@ -6,17 +8,18 @@ select_file <- function(input,
                         selected) {
 
         #This is to dynamically get the correct column name of the protocols experiment sheet
-        current_tab_col_name <- str_extract(session$ns(""), "^\\w+") %>%
-                paste0("_folder_url")
+        tab_name <-  str_extract(session$ns(""), "^\\w+")
+
 
         #build the protocol tibble from the spread sheet
         if (!exists("protocols")) {
                 progress$inc(.1, detail = "Accessing experiments.")
-                source("protocols/protocols_functions.R")
-                prot_gsheet <- {if (is_dev_server(session)) gs_url(protocols_sheet_dev)
-                        else gs_url(protocols_sheet_prod)}
+                source("protocols/protocols_functions.R");
+
+                prot_gsheet <- get_drive_url(session, "experiments") %>% gs_url()
+
                 protocols <- reactiveVal(protocols_get(drive_url, prot_gsheet, session = session,
-                                                       folder_url = current_tab_col_name))
+                                                       tab_name))
         }
 
         # Update the Protocol select input
