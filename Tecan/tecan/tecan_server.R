@@ -89,8 +89,6 @@ tecan_server <- function(input, output, session) {
                                 } else {
                                         tecan_n$calculated(
                                                 calc_values(tecan_n$raw()$data,
-                                                            absorbance,
-                                                            path,
                                                             water_well_pos = NULL,
                                                             water_readings = water_readings)
                                         )

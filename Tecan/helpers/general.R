@@ -22,10 +22,15 @@ get_drive_url <- function(session, name) {
         res <- switch(name,
                trash = {if (is_dev) trash_dev_drive_URL
                        else trash_prod_drive_URL},
+               #MS
                ms = ifelse(is_dev, ms_dev_drive_url, ms_prod_drive_url),
+               # Parent folder for CSVs needed by the Pooling method
                hami = ifelse(is_dev, protocols_hami_folder_dev, protocols_hami_folder_prod),
+               # Spreadsheet to edit & track experiments
                experiments = ifelse(is_dev, protocols_sheet_dev, protocols_sheet_prod),
+               # CSV with list of ongoing experiments
                experiments_csv = ifelse(is_dev, protocols_csv_dev, protocols_csv_prod),
+               # Tecan files parent folder
                tecan = ifelse(is_dev, tecan_dev_drive_URL, tecan_prod_drive_URL)
                )
         if (is.null(res)) {

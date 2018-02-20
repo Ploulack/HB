@@ -60,6 +60,10 @@ function(input, output, session) {
                 fun = function() {
                         if (file.exists("hblab_token.rds")) {file.remove("hblab_token.rds")}
                         file.remove(list.files("temp", full.names = TRUE))
+
+                        if (exists("db")) {
+                                rm(db)
+                        }
                 }
         )
 }

@@ -40,13 +40,12 @@ select_file <- function(input,
 
         #On change of selected protocol, update file list from drive
         observeEvent(input$protocol, {
-
                 if (input$protocol == "New")
                         url <- drive_url
                 else
                         url <- protocols() %>%
                                 filter(name == input$protocol) %>%
-                                "[["(current_tab_col_name)
+                                "[["(paste0(tab_name, "_folder_url"))
 
                 container$files <- url %>%
                         googledrive::as_id() %>%

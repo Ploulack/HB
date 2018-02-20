@@ -127,9 +127,6 @@ sample_widget <- function(input, output, session, sample_well, sample_key, sampl
         reactive_key <- reactive({input$well_key})
         delay <- ifelse(tecan_n$raw()$type == tecan_protocols_with_db[2], 1500, 0)
         input_key <- debounce(reactive_key, delay)
-        # input_key <- reactive({input$well_key})
-
-
 
         observeEvent(input_key(), {
                 if (is.null(input_key()) || input_key() == "") return()
