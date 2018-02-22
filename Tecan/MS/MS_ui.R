@@ -19,10 +19,12 @@ ms_ui <- function(id) {
 
                 ),
                 mainPanel(
+                        htmlOutput(outputId = ns("x_value")),
                         titlePanel(
                                 textOutput(outputId = ns("id"))
                         ),
-                        plotOutput(ns("bar")),
+                        plotOutput(ns("bar"),
+                                   click = ns("click")),
                         checkboxInput(inputId = ns("display_raw"),
                                       label = "Display unaggregated data"
                                       ),

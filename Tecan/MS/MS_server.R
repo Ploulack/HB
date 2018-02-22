@@ -1,5 +1,6 @@
-library(shiny)
+library(shiny); library(readxl)
 ms_server <- function(input, output, session) {
+        options(shiny.trace = FALSE)
         #### INIT & FILE HANDLING ####
         # source("helpers/ui_generics/select_file_server.R")
         # source("helpers/general.R")
@@ -18,6 +19,7 @@ ms_server <- function(input, output, session) {
         # })
         #
         # output$protocol <- renderTable(ms$protocols())
+
 
         #### GRAPHIC LAYOUT TESTS FOR MS DATA DIPLAY ####
         molecules <- c("Norcoclaurine", "Dopamine")
@@ -111,5 +113,33 @@ ms_server <- function(input, output, session) {
                 if (input$display_raw) {
                         unaggregated_tbl()
                         }  else display_tbl()
+        })
+
+        #### WORK ON CLICK TO FILTER ####
+        # Print the name of the x value
+        output$x_value <- renderText({
+                if (is.null(input$click$x)) return("")
+                else {
+                        browser()
+                        click_x <- input$click$x
+                        n_molecules <- length(input$molecules)
+                        splits <- seq(1/(2 * n_molecules), 1 - 1/(2 * n_molecules), 1/n_molecules)
+
+                        sample_lvls <- display_tbl()$Name %>%
+                                as_factor() %>%
+                                levels()
+                        name <- sample_lvls[round(click_x)]
+
+                        molecule_lvls <- display_tbl()$Molecule %>%
+                                as_factor() %>%
+                                levels()
+
+                        x <- click_x - round(click_x) + 1/2
+
+                        molecule_name <- molecule_lvls[which.min(abs(splits - x))]
+
+                        HTML("You've selected sample <code>", name, "</code>",
+                             "<br><br>And molecule <code>", molecule_name,"</code>")
+                }
         })
 }
