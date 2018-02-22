@@ -14,7 +14,9 @@ function(input, output, session) {
         })
 
         output$token_exists <- reactive({
-                token_test()})
+                # token_test()
+                TRUE
+                })
         outputOptions(output, "token_exists", suspendWhenHidden = FALSE)
 
         #Only start the Google Auth button module if no token

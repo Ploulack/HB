@@ -82,9 +82,7 @@ tecan_server <- function(input, output, session) {
 
                                 if (is.null(tecan_n$raw()$user_msg)) {
                                         tecan_n$calculated(
-                                                calc_values(tecan_n$raw()$data,
-                                                            absorbance,
-                                                            path)
+                                                calc_values(tecan_n$raw()$data)
                                         )
                                 } else {
                                         tecan_n$calculated(

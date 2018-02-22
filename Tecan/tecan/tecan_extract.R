@@ -109,6 +109,9 @@ calc_values <- function(tecan_raw_data,
                         water_well_pos = 1,
                         water_readings = NULL) {
 
+        assert_all_are_non_negative(c(molar_absorbance, path_length))
+        if (!is.null(water_well_pos)) assert_all_are_whole_numbers(water_well_pos)
+
         list_delta <- tecan_raw_data %>%
                 map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%
                 map(~mutate(.x,

@@ -2,7 +2,6 @@ select_file_ui <- function(id) {
         ns <- NS(id)
 
         tagList(
-
                      #Conditional not to display the refresh / delete buttons until file list received from drive
                      conditionalPanel(
                              condition = paste0("input.file != '", wait_msg, "'"),
