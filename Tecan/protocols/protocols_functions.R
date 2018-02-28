@@ -1,6 +1,7 @@
 library(purrr); library(glue)
 source("protocols/protocols_values.R"); source("helpers/strings.R")
 source("helpers/general.R"); source("protocols/pooling.R")
+source("helpers/drive_helpers.R")
 
 
 get_plates_tracking_drbl <- function(prot_row, drbl) {
@@ -44,7 +45,6 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
                 #TODO: Add a condition like the name is not empty
 
                 if (is.na(prot_row %>% "["(folder_url))) {
-                        browser()
 
                         drbl <- drive_create_or_get_folder(parent_folder = drive_folder,
                                                    folder_name = prot_row$name)
@@ -135,54 +135,7 @@ protocols_set_modal <- function(input, file_name, custom_msg, protocols,required
                                                                        label = "Select plate nb",
                                                                        choices = "",
                                                                        multiple = FALSE
-                                                 )),
-                                                 column(3, numericInput(ns("tecan_sample_vol"),
-                                                                        label = "Sampling uL for Tecan reading",
-                                                                        value = 10,
-                                                                        min = 10,
-                                                                        max = 50,
-                                                                        step = 5
-                                                                        )),
-                                                 column(3, numericInput(ns("tecan_water_vol"),
-                                                                        label = "Water added for Tecan reading",
-                                                                        value = 40,
-                                                                        min = 30,
-                                                                        max = 50,
-                                                                        step = 5
                                                  ))
-                                         ),
-                                         fluidRow(
-
-                                                 column(3, numericInput(ns("well_volume"),
-                                                                        label = "Wells to pool current vol",
-                                                                        value = 50,
-                                                                        min = 40,
-                                                                        max = 200,
-                                                                        step = 10
-                                                 )),
-                                                 column(3, numericInput(ns("dw_min_conc"),
-                                                                        label = "Minimum final pool conc.",
-                                                                        value = 100,
-                                                                        min = 0,
-                                                                        max = 1000,
-                                                                        step = 5
-                                                 )),
-                                                 column(3, numericInput(ns("min_nb_wells"),
-                                                                        label = "Min wells nb to pool",
-                                                                        value = 1,
-                                                                        min = 1,
-                                                                        max = 96))
-                                         ),
-                                         # numericInput(ns("target_concentration"),
-                                         #              label = "Target Concentration in ng/ul",
-                                         #              value = 100,
-                                         #              min = 100,
-                                         #              max = 500,
-                                         #              step = 100)
-                                         fluidRow(
-                                                 column(width = 6, tableOutput(ns("pooling"))),
-                                                 column(offset = 1, width = 4,
-                                                        htmlOutput(ns("deep_well")))
                                          )
                         ),
 
@@ -203,6 +156,91 @@ protocols_set_modal <- function(input, file_name, custom_msg, protocols,required
 
 
 }
+
+# protocols_set_modal <- function(input, file_name, custom_msg, protocols,required_msg = NULL, session) {
+#         #TODO: gestion db...
+#         ns <- session$ns
+#         csv_non_proc_str <- "unprocessed"
+#         default_set_prot <- "Select protocol"
+#         protocols_sheet <- {if (is_dev_server(session)) protocols_sheet_dev
+#                 else protocols_sheet_prod}
+#
+#         showModal(
+#                 modalDialog(
+#                         div(str_interp("Custom message for ${file_name} is ${custom_msg}.")),
+#
+#                         selectInput(inputId = ns("set_protocol"),
+#                                     label = "Select matching protocol",
+#                                     choices = protocols$name[-1] %>% prepend(default_set_prot)),
+#
+#                         conditionalPanel(condition = paste0("input['", ns("set_protocol"), "'] != '", default_set_prot, "'"),
+#                                          fluidRow(
+#                                                  column(2, selectInput(inputId = ns("set_plate_nb"),
+#                                                                        label = "Select plate nb",
+#                                                                        choices = "",
+#                                                                        multiple = FALSE
+#                                                  )),
+#                                                  column(3, numericInput(ns("tecan_sample_vol"),
+#                                                                         label = "Sampling uL for Tecan reading",
+#                                                                         value = 10,
+#                                                                         min = 10,
+#                                                                         max = 50,
+#                                                                         step = 5
+#                                                  )),
+#                                                  column(3, numericInput(ns("tecan_water_vol"),
+#                                                                         label = "Water added for Tecan reading",
+#                                                                         value = 40,
+#                                                                         min = 30,
+#                                                                         max = 50,
+#                                                                         step = 5
+#                                                  ))
+#                                          ),
+#                                          fluidRow(
+#
+#                                                  column(3, numericInput(ns("well_volume"),
+#                                                                         label = "Wells to pool current vol",
+#                                                                         value = 50,
+#                                                                         min = 40,
+#                                                                         max = 200,
+#                                                                         step = 10
+#                                                  )),
+#                                                  column(3, numericInput(ns("dw_min_conc"),
+#                                                                         label = "Minimum final pool conc.",
+#                                                                         value = 100,
+#                                                                         min = 0,
+#                                                                         max = 1000,
+#                                                                         step = 5
+#                                                  )),
+#                                                  column(3, numericInput(ns("min_nb_wells"),
+#                                                                         label = "Min wells nb to pool",
+#                                                                         value = 1,
+#                                                                         min = 1,
+#                                                                         max = 96))
+#                                          ),
+#                                          fluidRow(
+#                                                  column(width = 6, tableOutput(ns("pooling"))),
+#                                                  column(offset = 1, width = 4,
+#                                                         htmlOutput(ns("deep_well")))
+#                                          )
+#                         ),
+#
+#                         if (!is.null(required_msg))
+#                                 div(tags$b(required_msg, style = "color: red;")),
+#                         footer = tagList(
+#                                 actionButton(inputId = ns("ok_protocol"),
+#                                              label = "OK"),
+#                                 # actionButton(inputId = ns("preview_pooling"),
+#                                 #              label = "Preview"),
+#                                 tags$a(class = "btn btn-default",
+#                                        href = protocols_sheet,
+#                                        "Create new protocol",
+#                                        target = "_blank")
+#                         ),
+#                         size = "l"
+#                 ))
+#
+#
+# }
 
 move_drive_file <- function(tecan_n, prot_name, instrument) {
         folder_url <- paste0(instrument, "_folder_url")

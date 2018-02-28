@@ -1,6 +1,18 @@
 library(stringr)
 library(lubridate)
 
+download_drive_file <- function(folder = "temp/", input_file) {
+
+        #Todo: find the input_file in the dribble
+        if (!dir.exists(folder)) {
+                dir.create(folder)
+        }
+        local_xml <- paste0(folder,input_file)
+        drive_download(as_id(input_file), path = local_xml, overwrite = TRUE)
+        local_xml
+}
+
+
 dribble_get_link <- function(dribble) {
         dribble %>%
                 '[['("drive_resource") %>%

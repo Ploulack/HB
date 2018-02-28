@@ -7,7 +7,8 @@ tecan_server <- function(input, output, session) {
         source("registry/registry_helpers.R"); source("registry/registry_values.R")
         source("helpers/strings.R"); source("helpers/general.R")
         source("helpers/plates_helpers.R") ; source("mongo/db_values.R")
-        source("helpers/ui_generics/select_file_server.R")
+        source("helpers/ui_generics/select_file_server.R");
+        source("protocols/protocols_module.R")
 
         ns <- session$ns
         tecan_progress <- Progress$new()
@@ -40,24 +41,16 @@ tecan_server <- function(input, output, session) {
         #A switch to keep track of db inserts
         data_tagged_and_saved <- reactiveVal(value = FALSE)
 
-        #On button Go pressed, extract data from the xml currently listed
-        observeEvent(tecan_n$go_file(), {
-                #Prevent re-download from Google Drive when the select files input is initialized or updated,
-                if (tecan_n$id() == wait_msg) return()
-                else if (tecan_n$id() == "") {
-                        showModal(modalDialog(
-                                title = "No File",
-                                paste0("There's no files in specified Google Drive folder: ",
-                                       "/HB/Tecan")
-                        ))
-                } else {
-                        print(paste0("Extracting file : ", tecan_n$file_dribble()$name))
-                        tecan_dat <- tecan_extract(tecan_n$id(), tecan_n$files())
-                        tecan_n$raw(tecan_dat)
-                        # experiment$raw <- tecan_extract(input$file, tecan$files)
-                        data_tagged_and_saved(FALSE)
-                }
-        }, priority = 3)
+
+        obtain_file_data(
+                tecan_n$go_file,
+                "Tecan",
+                file_container = tecan_n,
+                dat_container = tecan_n$raw,
+                extract_function = tecan_extract,
+                data_saved_flag = data_tagged_and_saved
+        )
+
 
         # Todo: une horreur, tout reprendre clean
         observeEvent(c(input$absorbance,input$path, tecan_n$raw(), data_tagged_and_saved()),{
@@ -110,59 +103,75 @@ tecan_server <- function(input, output, session) {
         })
 
         #### PROTOCOLS ####
-        #On first opening, move files to their appropriate folders
-        observeEvent(tecan_n$raw(), {
-                unitary_folder <- tecan_n$protocols()$name[1]
-                if (tecan_n$protocol() != "New") return()
-                if (is.null(tecan_n$raw()$user_msg) || str_length(tecan_n$raw()$user_msg) == 0) {
-                        progress_prot_change <- Progress$new()
-                        progress_prot_change$inc(.5, str_interp("Moving file to ${unitary_folder} drive folder."))
-                        move_drive_file(tecan_n, prot_name = unitary_folder, "tecan")
 
-                        progress_prot_change$inc(.5, str_interp("Displaying list of ${unitary_folder} name."))
-                        selected(update_selected("Unitary", tecan_n$id()))
-                        # update_uis("Unitary", tecan_n, session = session)
-                        progress_prot_change$close()
-                } else {
-                        #If the Tecan file includes a custom msg popup choice to the user to do the matching
-                        protocols_set_modal(input = input,
-                                            tecan_n$file_dribble()$name,
-                                            tecan_n$raw()$user_msg,
-                                            protocols = tecan_n$protocols(),
-                                            session = session)
-                }
-        })
+        tecan_p <- callModule(module = protocols_handler,
+                              id = "tecan",
+                              file_container = tecan_n,
+                              data_container = tecan_n$raw,
+                              selected = selected)
 
-        #Update choices of plates in modal dialog
-        observeEvent(input$set_protocol, {
+        # #On first opening, move files to their appropriate folders
+        # observeEvent(tecan_n$raw(), {
+        #         unitary_folder <- tecan_n$protocols()$name[1]
+        #         if (tecan_n$protocol() != "New") return()
+        #         if (is.null(tecan_n$raw()$user_msg) || str_length(tecan_n$raw()$user_msg) == 0) {
+        #                 progress_prot_change <- Progress$new()
+        #                 progress_prot_change$inc(.5, str_interp("Moving file to ${unitary_folder} drive folder."))
+        #                 move_drive_file(tecan_n, prot_name = unitary_folder, "tecan")
+        #
+        #                 progress_prot_change$inc(.5, str_interp("Displaying list of ${unitary_folder} name."))
+        #                 selected(update_selected("Unitary", tecan_n$id()))
+        #                 # update_uis("Unitary", tecan_n, session = session)
+        #                 progress_prot_change$close()
+        #         } else {
+        #                 #If the Tecan file includes a custom msg popup choice to the user to do the matching
+        #                 protocols_set_modal(input = input,
+        #                                     tecan_n$file_dribble()$name,
+        #                                     tecan_n$raw()$user_msg,
+        #                                     protocols = tecan_n$protocols(),
+        #                                     session = session)
+        #         }
+        # })
+        #
+        # #Update choices of plates in modal dialog
+        # observeEvent(input$set_protocol, {
+        #
+        #         if (!input$set_protocol %in% tecan_n$protocols()$name) return()
+        #         selected_prot <- tecan_n$protocols() %>%
+        #                 filter(name == input$set_protocol)
+        #
+        #         proced_plates <- selected_prot %$%
+        #                 processed_plates %>%
+        #                 str_split(", ") %>%
+        #                 simplify()
+        #
+        #         total_plates <- 1:selected_prot$total_plates
+        #         plate_choices <- if (is.na(proced_plates)) total_plates
+        #         else total_plates %>%
+        #                 keep(!total_plates %in% proced_plates)
+        #
+        #         updateSelectInput(session = session,
+        #                           inputId = "set_plate_nb",
+        #                           choices = plate_choices)
+        #         render_pooling(input,
+        #                        output,
+        #                        tecan_n$calculated()$Results)
+        #
+        # }, ignoreInit = TRUE)
 
-                if (!input$set_protocol %in% tecan_n$protocols()$name) return()
-                selected_prot <- tecan_n$protocols() %>%
-                        filter(name == input$set_protocol)
 
-                proced_plates <- selected_prot %$%
-                        processed_plates %>%
-                        str_split(", ") %>%
-                        simplify()
+        observeEvent(tecan_p$ok_protocol(), {
+                pooling_modal()
 
-                total_plates <- 1:selected_prot$total_plates
-                plate_choices <- if (is.na(proced_plates)) total_plates
-                else total_plates %>%
-                        keep(!total_plates %in% proced_plates)
-
-                updateSelectInput(session = session,
-                                  inputId = "set_plate_nb",
-                                  choices = plate_choices)
                 render_pooling(input,
                                output,
-                               tecan_n$calculated()$Results)
-
+                               file_container$calculated()$Results)
         }, ignoreInit = TRUE)
 
 
-        #On modal validation, update protocols with selected plate
-        observeEvent(input$ok_protocol, {
-                #TODO: Add checks on the inputs...
+        #On pooling modal validation, open pooling modal
+        observeEvent(input$ok_pooling, {
+                #TODO: Add checks on the inputs...and reopen modal with required msg if error
 
                 # Store the pooling result from the users final settings in the modal
                 tecan_n$pool <- plate_pooling(tecan_n$calculated()$Results,
@@ -175,73 +184,14 @@ tecan_server <- function(input, output, session) {
 
                 # TODO: Create another container than tecan_n for the pooling stuff, this is dangerous:
                 # on a change of file, this data is going to stick if tecan_n no re-initialized....
-                tecan_n$experiment <- reactiveVal(input$set_protocol)
-                tecan_n$plate <- input$set_plate_nb
+                tecan_n$experiment <- reactiveVal(tecan_p$set_protocol())
+                tecan_n$plate <- tecan_p$set_plate_nb()
                 selected_prot <- tecan_n$protocols() %>%
-                        filter(name == input$set_protocol)
+                        filter(name == tecan_p$set_protocol())
 
-                #Update protocols gsheet with new plate
-                #Add new plate to string
-                if (is.na(selected_prot$processed_plates))
-                        updated_plates <- input$set_plate_nb
-                else updated_plates <- selected_prot$processed_plates %>%
-                        str_c(", ", input$set_plate_nb) %>%
-                        str_split(", ") %>%
-                        simplify() %>%
-                        as.integer() %>%
-                        unique() %>%   #I have a feeling this observer repeats...and so by forcing unique, prevent issues
-                        sort.int() %>%
-                        as.character() %>%
-                        str_c(collapse = ", ")
-
-                tmp_prot <- tecan_n$protocols()
-                tmp_prot[selected_prot$index, "processed_plates"] <- updated_plates
-                tecan_n$protocols(tmp_prot)
-
-                selected_prot <- tecan_n$protocols() %>%
-                        filter(name == input$set_protocol)
-
-                # ColID gets the A, B, ..Z col ID for the gsheet insertion
-                # More resilient to gsheet columns reordering
-                colID <- gsheet_colID_from_tibble(tecan_n$protocols(), "processed_plates")
-
-                gs_edit_cells(ss = tecan_n$protocols_gsheet,
-                              ws = 1,
-                              #TODO: tie the column to the procols tibble's column name...
-                              anchor = paste0(colID, selected_prot$index + 1),
-                              input = str_c("'", updated_plates)) #The added quote is to force string on gsheet
-
-                #Update CSV with new plate
-                csv_path <- "temp/modal_dialog_csv"
-
-                #Download csv file and keep its drive dribble
-                csv_drive_id <- selected_prot$plates_processed_url %>%
-                        as_id() %>%
-                        drive_download(path = csv_path,
-                                       overwrite = TRUE)
-
-                plates <- read_csv(csv_path)
-
-                #Update the tibble with the current time and with the tecan xml file link
-                plates[(input$set_plate_nb %>% as.integer()), ] <- tibble(
-                        processed_date = Sys.time() %>%
-                                force_tz(tzone = "EST") %>% as.character(),
-                        tecan_file_url = tecan_n$file_dribble() %>%
-                                dribble_get_link())
-                write_csv(plates, csv_path)
-
-                drive_update(file = csv_drive_id,
-                             media = csv_path)
-
-                #Move Tecan file to protocol folder
-                move_drive_file(tecan_n, prot_name = input$set_protocol, "tecan")
-
-                #Set user file selectInput on the same file
-                selected(update_selected(input$set_protocol, tecan_n$id()))
-                # update_uis(prot_name = input$set_protocol, tecan_n, session = session)
 
                 #Calculate water volume to normalize and generate the csv files for hamilton then upload to drive
-                tmp_norm_csv <- str_interp("temp/${input$set_protocol}__plate_${input$set_plate_nb}.csv")
+                tmp_norm_csv <- str_interp("temp/${tecan_p$set_protocol()}__plate_${tecan_p$set_plate_nb()}.csv")
 
                 tecan_n$pool$plate_pooled %>%
                         select(Sample, Aspirate_To_Pool = Pool_Volume) %>%

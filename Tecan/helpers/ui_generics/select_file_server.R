@@ -64,6 +64,7 @@ select_file <- function(input,
 
         #Display the file selection list
         observeEvent(c(choice_files(), input$refresh), {
+
                 choices <- choice_files()
                 updateSelectInput(session = session,
                                   inputId = "file",

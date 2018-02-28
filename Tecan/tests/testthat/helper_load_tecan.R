@@ -28,8 +28,7 @@ tecan_examples <- list(
         "yeast_growth" = list(xml = read_xml("tests/testthat/tecan_xml_files/2017-12-13 14-40-15_plate_1.xml"),
                               type = yeast_tecan,
                               desc = "Yeast Growth, all values below .2")
-) %>%
-        map(~list_modify(.x, data = tecan_data(.x$xml)))
+) %>% map(~list_modify(.x, data = tecan_data(.x$xml)))
 
 #Examples of xml files that don't work
 tecan_error_examples <- list(

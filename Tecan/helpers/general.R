@@ -1,4 +1,4 @@
-library(stringr)
+library(stringr); library(assertive)
 
 is_dev_server <- function(session) {
         host_name <- session$clientData$url_hostname
@@ -14,6 +14,7 @@ get_drive_url <- function(session, name) {
         source("ms/ms_values.R"); source("protocols/protocols_values.R")
         source("tecan/tecan_values.R")
         assert_all_are_non_missing_nor_empty_character(name)
+
         name <- name %>%
                 tolower()
 
@@ -37,4 +38,31 @@ get_drive_url <- function(session, name) {
                 warning("Unkown drive URL value")
                 return(NULL)}
         else return(res)
+}
+
+obtain_file_data <- function(go_button,
+                             tab_name,
+                             file_container,
+                             dat_container,
+                             extract_function,
+                             data_saved_flag = NULL) {
+
+        observeEvent(go_button(), {
+                #Prevent re-download from Google Drive when the select files input is initialized or updated,
+                # TODO: Useful to check that it's not the same file ?
+                if (file_container$id() == wait_msg) return()
+                else if (file_container$id() == "") {
+                        showModal(
+                                modalDialog(
+                                title = "No File",
+                                str_interp("There's no files in the ${tab_name} Drive folder."))
+                        )
+                } else {
+                        print(paste0("Extracting file : ", file_container$file_dribble()$name))
+                        file_dat <- extract_function(file_container$id(), file_container$files())
+                        dat_container(file_dat)
+                        # experiment$raw <- tecan_extract(input$file, tecan$files)
+                        if (!is.null(data_saved_flag)) data_saved_flag(FALSE)
+                }
+        }, priority = 3)
 }

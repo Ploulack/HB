@@ -4,25 +4,27 @@ ms_ui <- function(id) {
         source("helpers/ui_generics/select_file_ui.R")
 
         fluidPage(
-               # select_file_ui(ns("files")),
-                sidebarPanel(
-                        checkboxGroupInput(inputId = ns("molecules"),
-                                           label = "Molecules",
-                                           choices = "Waiting for server..."),
-                        checkboxGroupInput(inputId = ns("samples"),
-                                           label = "Samples",
-                                           choices = "Waiting for server..."
-                                           ),
-                        checkboxInput(inputId = ns("select_all"),
-                                      label = "Select all samples",
-                                      value = FALSE)
+                sidebarPanel(width = 3,
+                             select_file_ui(ns("files")),
+                             checkboxGroupInput(inputId = ns("molecules"),
+                                                label = "Molecules",
+                                                choices = "Waiting for server..."),
+                             checkboxGroupInput(inputId = ns("samples"),
+                                                label = "Samples",
+                                                choices = "Waiting for server..."
+                             ),
+                             checkboxInput(inputId = ns("select_all"),
+                                           label = "Select samples with a reading",
+                                           value = TRUE)
 
                 ),
                 mainPanel(
                         htmlOutput(outputId = ns("x_value")),
                         titlePanel(
-                                textOutput(outputId = ns("id"))
+                                textOutput(outputId = ns("file_title"))
                         ),
+                        checkboxInput(ns("log_scale"),
+                                      label = "Switch to log scale"),
                         plotOutput(ns("bar"),
                                    click = ns("click")),
                         checkboxInput(inputId = ns("display_raw"),

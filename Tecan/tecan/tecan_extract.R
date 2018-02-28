@@ -1,20 +1,31 @@
-require(lubridate); library(xml2)
+require(lubridate); library(xml2); library(rvest)
 require(stringr)
 
 source("helpers/drive_helpers.R")
 
 #To extract custom field from tecan file used to tie it to workflows
 tecan_custom_msg <- function(tecan) {
-        custom_access <- function() {tecan %>%
-                xml_find_all("Script") %>%
-                xml_contents() %>%
-                xml_children() %>%
-                xml_children() %>%
-                pluck(1) %>%
-                xml_children() %>%
-                pluck(1) %>%
-                xml_contents() %>%
-                pluck(6)}
+        custom_access <- function() {
+                tecan %>%
+                        xml_child(3) %>%
+                        xml_child() %>%
+                        xml_child() %>%
+                        xml_child() %>%
+                        xml_child() %>%
+                        xml_child(6) %>%
+                        xml_attr(attr = "description")
+
+                # tecan %>%
+                # xml_find_all("Script") %>%
+                # xml_contents() %>%
+                # xml_children() %>%
+                # xml_children() %>%
+                # pluck(1) %>%
+                # xml_children() %>%
+                # pluck(1) %>%
+                # xml_contents() %>%
+                # pluck(6)
+                }
 
         custom <- safely(custom_access)()
 
@@ -22,11 +33,8 @@ tecan_custom_msg <- function(tecan) {
                 print("No custom msg in file")
                 custom$result
         } else {
-                custom_msg <- custom$result %>%
-                        xml_attrs() %>%
-                        "["("description")
-                print(paste0("Custom msg in file: ", custom_msg))
-                custom_msg
+                print(paste0("Custom msg in file: ", custom$result))
+                custom$result
         }
 }
 

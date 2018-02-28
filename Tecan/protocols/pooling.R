@@ -1,9 +1,3 @@
-# calculated_data <- read_xml("tests/testthat/tecan_xml_files/2018-01-15 13-01-46_plate_1.xml") %>%
-#         tecan_data() %>%
-#         calc_values(water_well_pos = NULL, water_readings = water_readings)
-#
-# plate_data <- calculated_data$Results
-#
 
 plate_pooling <- function(plate_data,
                           min_wells_nb = 1,
@@ -14,12 +8,12 @@ plate_pooling <- function(plate_data,
                           tecan_water_vol = 40) {
 
         validate(
-               need(min_wells_nb, label = "Minimum number of wells"),
-               need(well_volume, label = "Volume of the PCR plate's wells from which the present Tecan plate was sampled from"),
-               need(min_pipet_vol, label = "Hamilton's minimum transfer volume"),
-               need(min_dw_conc, label = "Minimum final deep-well concentration"),
-               need(tecan_sample_vol, label = "Volume of sample taken from the PCR plate for this Tecan reading."),
-               need(tecan_water_vol, label = "Volume of water added to the sample")
+                need(min_wells_nb, label = "Minimum number of wells"),
+                need(well_volume, label = "Volume of the PCR plate's wells from which the present Tecan plate was sampled from"),
+                need(min_pipet_vol, label = "Hamilton's minimum transfer volume"),
+                need(min_dw_conc, label = "Minimum final deep-well concentration"),
+                need(tecan_sample_vol, label = "Volume of sample taken from the PCR plate for this Tecan reading."),
+                need(tecan_water_vol, label = "Volume of water added to the sample")
         )
 
         dilution_to_tecan <- tecan_sample_vol / (tecan_sample_vol + tecan_water_vol)
@@ -68,7 +62,7 @@ plate_pooling <- function(plate_data,
                 if (any(stop_conditions)) {
                         cat("Reason for pool cut-off: ",names(stop_conditions[stop_conditions]), sep = "\n")
                         break
-                        }
+                }
                 else {
                         idx <- i
                         plate$Pool_Volume[i] <- vol_from_current_well
@@ -83,8 +77,68 @@ plate_pooling <- function(plate_data,
 
         list(
                 deep_well = tibble(n_wells_pooled = idx,
-                              volume = sum(plate$Pool_Volume, na.rm = TRUE)) %>%
+                                   volume = sum(plate$Pool_Volume, na.rm = TRUE)) %>%
                         mutate(concentration = idx * dna_per_well / volume),
-             plate_pooled = plate %>%
-                     select(-Ratio))
+                plate_pooled = plate %>%
+                        select(-Ratio))
+}
+
+
+pooling_modal <- function(required_msg = NULL) {
+
+        showModal(
+                modalDialog(
+                        fluidRow(
+                                column(3, numericInput(ns("tecan_sample_vol"),
+                                                       label = "Sampling uL for Tecan reading",
+                                                       value = 10,
+                                                       min = 10,
+                                                       max = 50,
+                                                       step = 5
+                                )),
+                                column(3, numericInput(ns("tecan_water_vol"),
+                                                       label = "Water added for Tecan reading",
+                                                       value = 40,
+                                                       min = 30,
+                                                       max = 50,
+                                                       step = 5
+                                ))
+                        ),
+                        fluidRow(
+
+                                column(3, numericInput(ns("well_volume"),
+                                                       label = "Wells to pool current vol",
+                                                       value = 50,
+                                                       min = 40,
+                                                       max = 200,
+                                                       step = 10
+                                )),
+                                column(3, numericInput(ns("dw_min_conc"),
+                                                       label = "Minimum final pool conc.",
+                                                       value = 100,
+                                                       min = 0,
+                                                       max = 1000,
+                                                       step = 5
+                                )),
+                                column(3, numericInput(ns("min_nb_wells"),
+                                                       label = "Min wells nb to pool",
+                                                       value = 1,
+                                                       min = 1,
+                                                       max = 96))
+                        ),
+                        fluidRow(
+                                column(width = 6, tableOutput(ns("pooling"))),
+                                column(offset = 1, width = 4,
+                                       htmlOutput(ns("deep_well")))
+                        ),
+
+                        if (!is.null(required_msg))
+                                div(tags$b(required_msg, style = "color: red;")),
+                        footer = tagList(
+                                actionButton(inputId = ns("ok_pooling"),
+                                             label = "OK")
+                        ),
+                        size = "l"
+                )
+        )
 }
