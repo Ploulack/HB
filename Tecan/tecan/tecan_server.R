@@ -110,67 +110,18 @@ tecan_server <- function(input, output, session) {
                               data_container = tecan_n$raw,
                               selected = selected)
 
-        # #On first opening, move files to their appropriate folders
-        # observeEvent(tecan_n$raw(), {
-        #         unitary_folder <- tecan_n$protocols()$name[1]
-        #         if (tecan_n$protocol() != "New") return()
-        #         if (is.null(tecan_n$raw()$user_msg) || str_length(tecan_n$raw()$user_msg) == 0) {
-        #                 progress_prot_change <- Progress$new()
-        #                 progress_prot_change$inc(.5, str_interp("Moving file to ${unitary_folder} drive folder."))
-        #                 move_drive_file(tecan_n, prot_name = unitary_folder, "tecan")
-        #
-        #                 progress_prot_change$inc(.5, str_interp("Displaying list of ${unitary_folder} name."))
-        #                 selected(update_selected("Unitary", tecan_n$id()))
-        #                 # update_uis("Unitary", tecan_n, session = session)
-        #                 progress_prot_change$close()
-        #         } else {
-        #                 #If the Tecan file includes a custom msg popup choice to the user to do the matching
-        #                 protocols_set_modal(input = input,
-        #                                     tecan_n$file_dribble()$name,
-        #                                     tecan_n$raw()$user_msg,
-        #                                     protocols = tecan_n$protocols(),
-        #                                     session = session)
-        #         }
-        # })
-        #
-        # #Update choices of plates in modal dialog
-        # observeEvent(input$set_protocol, {
-        #
-        #         if (!input$set_protocol %in% tecan_n$protocols()$name) return()
-        #         selected_prot <- tecan_n$protocols() %>%
-        #                 filter(name == input$set_protocol)
-        #
-        #         proced_plates <- selected_prot %$%
-        #                 processed_plates %>%
-        #                 str_split(", ") %>%
-        #                 simplify()
-        #
-        #         total_plates <- 1:selected_prot$total_plates
-        #         plate_choices <- if (is.na(proced_plates)) total_plates
-        #         else total_plates %>%
-        #                 keep(!total_plates %in% proced_plates)
-        #
-        #         updateSelectInput(session = session,
-        #                           inputId = "set_plate_nb",
-        #                           choices = plate_choices)
-        #         render_pooling(input,
-        #                        output,
-        #                        tecan_n$calculated()$Results)
-        #
-        # }, ignoreInit = TRUE)
-
-
         observeEvent(tecan_p$ok_protocol(), {
-                pooling_modal()
+                pooling_modal(ns = ns)
 
                 render_pooling(input,
                                output,
-                               file_container$calculated()$Results)
+                               tecan_n$calculated()$Results)
         }, ignoreInit = TRUE)
 
 
         #On pooling modal validation, open pooling modal
         observeEvent(input$ok_pooling, {
+
                 #TODO: Add checks on the inputs...and reopen modal with required msg if error
 
                 # Store the pooling result from the users final settings in the modal
@@ -185,7 +136,6 @@ tecan_server <- function(input, output, session) {
                 # TODO: Create another container than tecan_n for the pooling stuff, this is dangerous:
                 # on a change of file, this data is going to stick if tecan_n no re-initialized....
                 tecan_n$experiment <- reactiveVal(tecan_p$set_protocol())
-                tecan_n$plate <- tecan_p$set_plate_nb()
                 selected_prot <- tecan_n$protocols() %>%
                         filter(name == tecan_p$set_protocol())
 

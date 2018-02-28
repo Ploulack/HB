@@ -1,3 +1,5 @@
+library(rlang)
+
 protocols_handler <- function(input,
                               output,
                               session,
@@ -128,9 +130,11 @@ protocols_handler <- function(input,
                 #Update the tibble with the current time and with the file link
                 plates[(input$set_plate_nb %>% as.integer()), ] <- tibble(
                         processed_date = Sys.time() %>%
-                                force_tz(tzone = "EST") %>% as.character(),
-                        paste0(tab_name,"_file_url") = file_container$file_dribble() %>%
-                                dribble_get_link())
+                                force_tz(tzone = "EST") %>%
+                                as.character(),
+                        !!paste0(tab_name,"_file_url") := file_container$file_dribble() %>%
+                                dribble_get_link()
+                        )
                 write_csv(plates, csv_path)
 
                 drive_update(file = csv_drive_id,
@@ -146,6 +150,7 @@ protocols_handler <- function(input,
 
         return(list(
                 ok_protocol = reactive(input$ok_protocol),
-                set_protocol = reactive(input$set_protocol)
+                set_protocol = reactive(input$set_protocol),
+                set_plate_nb = reactive(input$set_plate_nb)
         ))
 }

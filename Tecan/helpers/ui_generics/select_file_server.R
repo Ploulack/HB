@@ -90,6 +90,7 @@ select_file <- function(input,
                    removed_files)
 
         observeEvent(selected(), {
+                browser()
                 # Switch UI to the protocol where this file was moved to
                 updateSelectInput(session = session,
                                   inputId = "protocol",

@@ -84,7 +84,7 @@ plate_pooling <- function(plate_data,
 }
 
 
-pooling_modal <- function(required_msg = NULL) {
+pooling_modal <- function(ns, required_msg = NULL) {
 
         showModal(
                 modalDialog(
