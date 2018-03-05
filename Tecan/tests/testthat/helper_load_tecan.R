@@ -36,3 +36,7 @@ tecan_error_examples <- list(
                            desc = "Completely truncated.",
                            error = "Premature end of data in tag Version line 68")
 )
+
+# ms_examples <- list(
+#         ""
+# )

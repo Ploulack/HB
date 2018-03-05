@@ -1,14 +1,15 @@
 library(purrr); library(glue)
+library(magrittr)
 source("protocols/protocols_values.R"); source("helpers/strings.R")
 source("helpers/general.R"); source("protocols/pooling.R")
 source("helpers/drive_helpers.R")
 
 
-get_plates_tracking_drbl <- function(prot_row, drbl) {
+get_plates_tracking_drbl <- function(prot_row, drbl, tab_name) {
 
         #Create the plates index
         stopifnot(is.integer(prot_row$total_plates))
-        temp_csv <- str_interp("${prot_row$name} plates processed date.csv")
+        temp_csv <- str_interp("${prot_row$name} plates ${tab_name} processed info.csv")
         path_temp_csv <- paste0("temp/",temp_csv)
         protocol_folder_ls <- drive_ls(drbl)
 
@@ -34,7 +35,7 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
                 gs_read() %>%
                 mutate(date_finished = lubridate::dmy(date_finished)) %>%
                 filter(is.na(date_finished) | date_finished > Sys.Date()) %>%
-                mutate(index = 1:n())
+                mutate(index = 1:n()) #TODO: se souvenir de retirer cet index
 
 
         #Create directory and add directory link to spreadsheet if a protocol doesn't have its own
@@ -44,10 +45,24 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
 
                 #TODO: Add a condition like the name is not empty
 
+
                 if (is.na(prot_row %>% "["(folder_url))) {
 
                         drbl <- drive_create_or_get_folder(parent_folder = drive_folder,
                                                    folder_name = prot_row$name)
+
+
+                        plates_processed <- get_plates_tracking_drbl(prot_row, drbl, tab_name)
+                        stopifnot(is_dribble(plates_processed))
+
+
+                        # Get the new folder link
+                        links <- list(drbl, plates_processed) %>%
+                                map_chr(dribble_get_link)
+
+                        #Add processed plate tracking csv link to current protocols tibble
+                        protocols[i, paste0(tab_name, "_plates_processed_url")] <- links[2]
+
 
                         # Check if the hamilton folder link exists or not
                         if (tab_name == "tecan") {
@@ -57,28 +72,9 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
                                                                                 prot_row$name)
                                         #Add hamilton folder link to current protocols tibble
                                         protocols[i, "hami_folder_url"] <- dribble_get_link(hami_drbl)
-                                } else {
-                                        hami_drbl <- NULL
+                                        links[3] <- hami_drbl
                                 }
-                        }
-
-                        if (tab_name == "tecan") {
-                                plates_processed <- get_plates_tracking_drbl(prot_row, drbl)
-                                stopifnot(is_dribble(plates_processed))
-
-                                # Get the new folder link
-                                links <- list(drbl, plates_processed, hami_drbl) %>%
-                                        keep(~!is.null(.)) %>%
-                                        map_chr(dribble_get_link)
-
-                                #Add processed plate tracking csv link to current protocols tibble
-                                protocols[i, "plates_processed_url"] <- links[2]
-
                                 update_hami_csv <- TRUE
-
-                        } else if (tab_name == "ms") {
-                                links <- drbl %>%
-                                        dribble_get_link()
                         }
 
                         protocols[i, folder_url] <- links[1]

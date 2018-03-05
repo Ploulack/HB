@@ -1,22 +1,24 @@
 library(rlang)
+source("helpers/drive_helpers.R")
 
 protocols_handler <- function(input,
                               output,
                               session,
                               file_container,
                               data_container,
-                              selected) {
+                              selected,
+                              db) {
 
         #This is to dynamically get the correct column name of the protocols experiment sheet
         tab_name <-  str_extract(session$ns(""), "^\\w+")
         processed_plates <- paste0(tab_name,"_processed_plates")
 
         is_unitary <- reactive({
-                if (tab_name == "tecan") {
-                        (is.null(data_container()$user_msg) ||
-                                 str_length(data_container()$user_msg) == 0)
-                }
-                # if (tab_name == "ms"){}
+                switch(tab_name,
+                       tecan = is.null(data_container()$user_msg) ||
+                               str_length(data_container()$user_msg) == 0,
+                       ms = str_detect(file_container$file_dribble()$name, "UNITARY")
+                       )
         })
 
 
@@ -33,7 +35,10 @@ protocols_handler <- function(input,
 
                         progress_prot_change$inc(.5, str_interp("Displaying list of ${unitary_folder} name."))
                         selected(update_selected("Unitary", file_container$id()))
-                        # update_uis("Unitary", tecan_n, session = session)
+
+                        progress_prot_change$inc(.5, str_interp("Adding ${unitary_folder} info to db entry."))
+                        mongo_add_protocol(db, file_container$id(), "Unitary")
+
                         progress_prot_change$close()
                 } else {
                         #If the Tecan file includes a custom msg popup choice to the user to do the matching
@@ -59,7 +64,7 @@ protocols_handler <- function(input,
                         simplify()
 
                 total_plates <- 1:selected_prot$total_plates
-                plate_choices <- if (is.na(proced_plates)) total_plates
+                plate_choices <- if (is.null(proced_plates) || is.na(proced_plates)) total_plates
                 else total_plates %>%
                         keep(!total_plates %in% proced_plates)
 
@@ -79,12 +84,16 @@ protocols_handler <- function(input,
 
                 #TODO: Add checks on the experiment and plate nb inputs...and reopen modal with required message.
 
-                # TODO: Create another container than tecan_n for the pooling stuff, this is dangerous:
-                # on a change of file, this data is going to stick if tecan_n no re-initialized....
                 file_container$experiment <- reactiveVal(input$set_protocol)
                 file_container$plate <- input$set_plate_nb
                 selected_prot <- file_container$protocols() %>%
                         filter(name == input$set_protocol)
+
+                # The cell is only null when there's a column name issue. better stop in that case and check the google spreadsheet.
+                assert_is_not_null(selected_prot[[processed_plates]], severity = "stop")
+
+                #Add protocol info to db entry
+                mongo_add_protocol(db, file_container$id(), input$set_protocol)
 
                 #Update protocols gsheet with new plate
                 #Add new plate to string
@@ -120,7 +129,7 @@ protocols_handler <- function(input,
                 csv_path <- "temp/modal_dialog_csv"
 
                 #Download csv file and keep its drive dribble
-                csv_drive_id <- selected_prot$plates_processed_url %>%
+                csv_drive_id <- selected_prot[[paste0(tab_name, "_plates_processed_url")]] %>%
                         as_id() %>%
                         drive_download(path = csv_path,
                                        overwrite = TRUE)
@@ -140,7 +149,7 @@ protocols_handler <- function(input,
                 drive_update(file = csv_drive_id,
                              media = csv_path)
 
-                #Move Tecan file to protocol folder
+                #Move file to protocol folder
                 move_drive_file(file_container, prot_name = input$set_protocol, tab_name)
 
                 #Set user file selectInput on the same file

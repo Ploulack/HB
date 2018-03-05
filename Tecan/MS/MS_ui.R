@@ -15,7 +15,7 @@ ms_ui <- function(id) {
                              ),
                              checkboxInput(inputId = ns("select_all"),
                                            label = "Select samples with a reading",
-                                           value = TRUE)
+                                           value = FALSE)
 
                 ),
                 mainPanel(

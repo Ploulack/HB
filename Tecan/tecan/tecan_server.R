@@ -1,5 +1,6 @@
 tecan_server <- function(input, output, session) {
-        library(shiny); library(stringr); library(purrr); library(magrittr)
+        library(shiny); library(stringr);
+        library(purrr); library(magrittr)
 
         source("tecan/tecan_extract.R"); source("tecan/tecan_values.R")
         source("helpers/drive_helpers.R"); source("helpers/delete_file_button_module.R")
@@ -88,19 +89,6 @@ tecan_server <- function(input, output, session) {
                 }
         }, priority = 2)
 
-        #Get db records attached to new file
-        file_record <- eventReactive(tecan_n$go_file(), {
-                shiny::validate(need(!is.null(tecan_n$raw()$type),
-                                     # shiny::validate(need(!is.null(experiment$raw$type),
-                                     message = FALSE))
-
-                #Display db ui only if File is not kinetic...
-                if (tecan_n$raw()$type %in% tecan_protocols_with_db) {
-                        return(mongo_file_entry(db, tecan_n$id()))
-                } else {
-                        return(list("entry_exists" = FALSE))
-                }
-        })
 
         #### PROTOCOLS ####
 
@@ -108,7 +96,8 @@ tecan_server <- function(input, output, session) {
                               id = "tecan",
                               file_container = tecan_n,
                               data_container = tecan_n$raw,
-                              selected = selected)
+                              selected = selected,
+                              db = db)
 
         observeEvent(tecan_p$ok_protocol(), {
                 pooling_modal(ns = ns)
@@ -161,6 +150,21 @@ tecan_server <- function(input, output, session) {
 
 
         #### DB STORAGE ####
+
+        #Get db records attached to new file
+        file_record <- eventReactive(tecan_n$go_file(), {
+                shiny::validate(need(!is.null(tecan_n$raw()$type),
+                                     # shiny::validate(need(!is.null(experiment$raw$type),
+                                     message = FALSE))
+
+                #Display db ui only if File is not kinetic...
+                if (tecan_n$raw()$type %in% tecan_protocols_with_db) {
+                        return(mongo_file_entry(db, tecan_n$id()))
+                } else {
+                        return(list("entry_exists" = FALSE))
+                }
+        })
+
         #Container for samples
         samples <- reactiveVal(value = NULL)
         #To prevent updating empty string notes...

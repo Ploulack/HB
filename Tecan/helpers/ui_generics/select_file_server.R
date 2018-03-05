@@ -16,7 +16,8 @@ select_file <- function(input,
                 progress$inc(.1, detail = "Accessing experiments.")
                 source("protocols/protocols_functions.R");
 
-                prot_gsheet <- get_drive_url(session, "experiments") %>% gs_url()
+                prot_gsheet <- get_drive_url(session, "experiments") %>%
+                        gs_url()
 
                 protocols <- reactiveVal(protocols_get(drive_url, prot_gsheet, session = session,
                                                        tab_name))
@@ -90,7 +91,7 @@ select_file <- function(input,
                    removed_files)
 
         observeEvent(selected(), {
-                browser()
+
                 # Switch UI to the protocol where this file was moved to
                 updateSelectInput(session = session,
                                   inputId = "protocol",

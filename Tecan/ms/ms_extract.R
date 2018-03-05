@@ -18,7 +18,7 @@ extract_ms_data <- function(xml_file = file4) {
 		map(xml_attrs) %>%
 		map_df(as.list) %>%
 		mutate(Time = paste0(createdate,"_",createtime) %>%
-			  	dmy_hms()) %>%
+			  	dmy_hms(tz = "America/Montreal")) %>%
 		select(Name = name,type, sampleid = id, groupid, Time)
 
 	samples %>%
