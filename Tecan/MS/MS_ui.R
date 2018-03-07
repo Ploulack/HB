@@ -26,7 +26,10 @@ ms_ui <- function(id) {
                         checkboxInput(ns("log_scale"),
                                       label = "Switch to log scale"),
                         plotOutput(ns("bar"),
-                                   click = ns("click")),
+                                   click = ns("click")
+                                   # hover = hoverOpts(id = ns("hover"),
+                                   #                   delayType = "debounce", delay = 300)
+                                   ),
                         checkboxInput(inputId = ns("display_raw"),
                                       label = "Display unaggregated data"
                                       ),

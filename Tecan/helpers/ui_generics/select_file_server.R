@@ -33,7 +33,8 @@ select_file <- function(input,
         #Container for ordered drive folder file names
         container <- reactiveValues(files = drive_url %>%
                                             as_id() %>%
-                                            get_ordered_filenames_from_drive(progress = progress),
+                                            get_ordered_filenames_from_drive(type = tab_name,
+                                                                             progress = progress),
                                     selected_file = NULL,
                                     selected_protocol = NULL)
 
@@ -57,11 +58,18 @@ select_file <- function(input,
         choice_files <- eventReactive(c(input$refresh, # User checks for new files
                                         removed_files(), # User has removed files
                                         container$files), # User has changed files
-                                      {files <- container$files %>%
-                                              filter(id != if (is.null(removed_files())) ""
-                                                     else removed_files()) %>%
-                                              select(id, exp_date)
-                                      files$id %>% set_names(files$exp_date)})
+                                      {
+                                              files <- container$files %>%
+                                                      filter(id != if (is.null(removed_files())) ""
+                                                             else removed_files()) %>%
+                                                      select(id, exp_date, name)
+
+                                              if (tab_name == "ms") {
+                                                      files$id %>% set_names(files$name)
+                                              } else {
+                                                      files$id %>% set_names(files$exp_date)
+                                              }
+                                      })
 
         #Display the file selection list
         observeEvent(c(choice_files(), input$refresh), {
