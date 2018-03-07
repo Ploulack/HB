@@ -1,14 +1,15 @@
 graph_bar_get_clicked_sample <- function(click_x,
                                          n_groups,
-                                         sample_names,
-                                         sample_groups,
+                                         name_var,
+                                         group_var,
                                          data) {
 
         #TODO: rather than force supply of vectors, just give the variables name, unquoted, in the tibble
+        #TODO: vérifier mais a priori n_groups c'est redondant et l'info est gérable avec la data
 
         splits <- seq(1/(2 * n_groups), 1 - 1/(2 * n_groups), 1/n_groups)
 
-        sample_lvls <- sample_names %>%
+        sample_lvls <- data %>%
                 as_factor() %>%
                 levels()
 

@@ -33,24 +33,24 @@ ms_server <- function(input, output, session) {
         ms_db <- db_from_environment(session, collection = "ms")
 
         file_record <- eventReactive(ms$go_file(), {
-                mongo_file_entry(ms_db, ms$id(), tab_name)
-        })
+                record <- mongo_file_entry(ms_db, ms$id(), tab_name)
 
-        observeEvent(ms$go_file(), {
-                if (!file_record()$entry_exists) {
+                if (!record$entry_exists) {
                         ms_dat_json <- jsonlite::toJSON(x = ms$tbl(),
                                                         dataframe = "rows",
                                                         POSIXt = "mongo",
                                                         pretty = TRUE)
 
                         query <- str_interp('{
-                                "_id" : "${ms$id()}",
-                                "name": "${ms$file_dribble()$name}",
-                                "data": ${ms_dat_json}}'
-                                )
+                                            "_id" : "${ms$id()}",
+                                            "name": "${ms$file_dribble()$name}",
+                                            "data": ${ms_dat_json}}'
+                        )
 
                         insert_log <- ms_db$insert(query)
+                        cat("insert log : ", insert_log)
                 }
+                return(record)
         })
 
         #### PROTOCOLS ####
@@ -63,25 +63,30 @@ ms_server <- function(input, output, session) {
 
         #### GRAPHIC LAYOUT TESTS FOR MS DATA DIPLAY ####
 
-        observe({
+        observeEvent(ms$go_file(), {
+                #Reset stored choices
+                stored_choices(NULL)
+
+                #Reset the select all button
+                updateCheckboxInput(session, "select_all", value = FALSE)
+
                 updateCheckboxGroupInput(session = session,
                                          inputId = "samples",
                                          choices = unique(ms$tbl()$Name),
                                          selected = unique(ms$tbl()$Name)[1]
                                          )
-        })
-
-        observe({
                 updateCheckboxGroupInput(session = session,
                                          inputId = "molecules",
                                          choices = unique(ms$tbl()$Molecule),
                                          selected = unique(ms$tbl()$Molecule)
-                                         )
+                )
+
         })
 
         stored_choices <- reactiveVal(NULL)
 
         observeEvent(input$select_all, {
+
                 if (input$select_all) {
                         stored_choices(input$samples)
 
@@ -94,7 +99,8 @@ ms_server <- function(input, output, session) {
                                                  inputId = "samples",
                                                  selected = non_0_conc_choices)
 
-                } else {
+                } else if (!is.null(stored_choices())) {
+                        browser()
                         updateCheckboxGroupInput(session = session,
                                                  inputId = "samples",
                                                  selected = stored_choices())
@@ -123,15 +129,21 @@ ms_server <- function(input, output, session) {
                                     ungroup() %>%
                                     mutate(cut_off = TRUE)
                             )
-        }, priority = 2)
+        }, priority = -1)
 
-
-        last_click <- eventReactive(input$click, {
-                validate(need(!is.null(input$click), message = FALSE))
-                input$click
+        last_click <- reactiveVal(NULL)
+        observeEvent(input$click, {
+                if (!is.null(input$click)) last_click(input$click)
         })
 
-        clicked_sample <- eventReactive(last_click(),{
+        #On file change reset the value selection from click
+        observeEvent(ms$go_file(), {
+                last_click(NULL)
+        })
+
+        clicked_sample <- eventReactive(last_click(), {
+
+                if (is.null(last_click())) return(NULL)
 
                 click_x <- last_click()$x
                 n_molecules <- length(input$molecules)
@@ -159,7 +171,7 @@ ms_server <- function(input, output, session) {
                      molecule = molecule_name,
                      value = value)
 
-        })
+        }, ignoreNULL = FALSE)
 
         observeEvent(clicked_sample(), {
 
@@ -168,7 +180,6 @@ ms_server <- function(input, output, session) {
                                 display_tbl() %>%
                                         mutate(cut_off = TRUE)
                         )
-                        # print(paste0("No value: ", display_tbl()))
                 } else {
 
                         display_tbl(
@@ -180,17 +191,7 @@ ms_server <- function(input, output, session) {
                                                 missing = FALSE)
                                         )
                         )
-
-                        # print(paste0("With value: ", display_tbl()))
                 }
-
-                # print(res)
-                #update display tbl
-                # display_tbl(
-                #         display_tbl() %>%
-                #                 ungroup() %>%
-                #                 mutate(cut_off = res)
-                # )
         })
 
         output$file_title <- renderText({
@@ -215,10 +216,9 @@ ms_server <- function(input, output, session) {
         })
 
         output$bar <- renderPlot({
-                if (is.null(display_tbl())) return()
-                # browser()
+                if (is.null(display_tbl()) || nrow(display_tbl()) == 0) return()
 
-                ggplot(display_tbl()) +
+                g <- ggplot(display_tbl()) +
                         aes(x = Name, y = Mean, fill = Molecule) +
                         geom_bar(position = "dodge",
                                  stat = "identity",
@@ -230,7 +230,6 @@ ms_server <- function(input, output, session) {
                                       aes(ymax = Mean + sd,
                                           ymin = Mean - sd,
                                           width = .15)) +
-                        geom_hline(yintercept = clicked_sample()$value) +
                         theme(axis.text.x = element_text(angle = 60,
                                                          hjust = .8,
                                                          size = 10,
@@ -238,6 +237,13 @@ ms_server <- function(input, output, session) {
                         scale_y_continuous(trans = barplot_scale()) +
                         scale_fill_discrete(limits = levels(ms$tbl()$Molecule)) +
                         scale_alpha_discrete(drop = FALSE, guide = "none")
+
+                if (!is.null(clicked_sample()$value)) {
+                        g + geom_hline(yintercept = clicked_sample()$value)
+                } else {
+                        g
+                }
+
 
         })
 

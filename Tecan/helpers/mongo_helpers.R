@@ -5,7 +5,13 @@ mongo_file_entry <- function(db, file, type = "tecan") {
                ms = "_id")
 
         srch <- str_interp('{"${key}" : "${file}"}')
-        entry <- db$find(srch)
+
+        db_delay <- system.time(
+                entry <- db$find(srch)
+        )
+
+        cat("Delay on checking if entry exists ", db_delay)
+
         entry_exists <- !length(entry) == 0
 
         return(list(
