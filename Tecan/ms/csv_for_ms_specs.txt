@@ -1,0 +1,33 @@
+
+
+
+FILE_NAME,
+
+"dipks_sample_1", #sample name, typed by the user in the UI
+
+#Fields that generate the sample to force the user to enter the proper sample name format:
+# list of fields: strain_optional.plasmid_optional.group
+
+
+ID,
+#sequential (no user input)
+
+
+MS_FILE,INLET_FILE,
+
+SAMPLE_LOCATION,
+# either 2:A,1 -> 2:H,12 || 2:1,A -> 2:8,F
+# Each value is non exclusive (can have several 2:B,3)
+
+# Before the standards serie, blank, repeat blank before AND AFTER reading analytes
+
+
+INJ_VOL,
+#
+
+TYPE,CONC_A,MS_TUNE_FILE,CONC_B,SPARE_1,FILE_TEXT
+
+"1", #
+
+
+"C:\MassLynx\UNITARY.PRO\ACQUDB\General_all_20180213.exp","long_hold","2:4",3,"ANALYTE","","C:\MassLynx\IntelliStart\Results\Unit Mass Resolution\Calibration_20180302.cal","","2","Olivetol, dipks"

@@ -9,14 +9,13 @@ ms_ui <- function(id) {
                              checkboxGroupInput(inputId = ns("molecules"),
                                                 label = "Molecules",
                                                 choices = "Waiting for server..."),
+                             checkboxInput(inputId = ns("select_all"),
+                                           label = "Select samples with a reading",
+                                           value = FALSE),
                              checkboxGroupInput(inputId = ns("samples"),
                                                 label = "Samples",
                                                 choices = "Waiting for server..."
-                             ),
-                             checkboxInput(inputId = ns("select_all"),
-                                           label = "Select samples with a reading",
-                                           value = FALSE)
-
+                             )
                 ),
                 mainPanel(
                         htmlOutput(outputId = ns("x_value")),
@@ -29,10 +28,10 @@ ms_ui <- function(id) {
                                    click = ns("click")
                                    # hover = hoverOpts(id = ns("hover"),
                                    #                   delayType = "debounce", delay = 300)
-                                   ),
+                        ),
                         checkboxInput(inputId = ns("display_raw"),
                                       label = "Display unaggregated data"
-                                      ),
+                        ),
                         tableOutput(ns("table"))
                 )
         )
