@@ -2,30 +2,53 @@
 
 
 FILE_NAME,
-
 "dipks_sample_1", #sample name, typed by the user in the UI
 
 #Fields that generate the sample to force the user to enter the proper sample name format:
 # list of fields: strain_optional.plasmid_optional.group
+
+# The user then must tag a well as being either a blank, a standard, or an analyte
 
 
 ID,
 #sequential (no user input)
 
 
-MS_FILE,INLET_FILE,
+MS_FILE,
+"C:\MassLynx\UNITARY.PRO\ACQUDB\General_all_20180213.exp"
+
+INLET_FILE,
+"long_hold"
+
 
 SAMPLE_LOCATION,
 # either 2:A,1 -> 2:H,12 || 2:1,A -> 2:8,F
 # Each value is non exclusive (can have several 2:B,3)
 
-# Before the standards serie, blank, repeat blank before AND AFTER reading analytes
+# blank | standards | blank | analytes | blank
 
 
 INJ_VOL,
-#
+# always 3 (ul)
 
-TYPE,CONC_A,MS_TUNE_FILE,CONC_B,SPARE_1,FILE_TEXT
+TYPE,
+# The user then must tag a well as being either a blank, a standard, or an analyte
+
+CONC_A,
+# only standards have a value, others have ""
+
+MS_TUNE_FILE,
+C:\MassLynx\IntelliStart\Results\Unit Mass Resolution\Calibration_20180302.cal
+C:\MassLynx\IntelliStart\Results\Unit Mass Resolution\Calibration_ root don't change then date.cal
+#Sync the cal files folder
+#and always use the file name of the last drive uploaded file
+
+SPARE_1,
+# group IF replicate
+# button next to each sample to 'replicate' _> this handles the rest
+
+FILE_TEXT
+# comma separated tags
 
 "1", #
 

@@ -1,0 +1,7 @@
+#### MONGO SHELL SCRIPT ####
+
+mongo ds036967.mlab.com:36967/hblab -u <user> -p <pwd>
+
+db.createRole({role: "app_client", privileges: [ { resource : { db : "hblab", collection : "ms"}, actions : [ "find", "insert", "remove", "update"] }], roles : [] })
+
+db.grantPrivilegesToRole("app_client", [{ resource : {db: "", collection : ""},  actions:[ "find", "insert", "remove", "update"] } ] )
