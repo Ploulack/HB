@@ -1,17 +1,25 @@
 source("registry/registry_values.R")
 
 
-registry_key_names <- function(registry_url, registry_sheets, file = registry_file) {
+update_file_if_outdated <- function(url, sheets, local_file) {
         library(readxl)
-        registry_modified <- drive_get(as_id(registry_url))$drive_resource[[1]]$modifiedTime %>%
+        last_modified <- drive_get(as_id(url))$drive_resource[[1]]$modifiedTime %>%
                 ymd_hms(tz = "America/Montreal", quiet = TRUE)
-        registry_synced <- file.mtime(file)
-        outdated <- registry_modified > registry_synced
+        last_synced <- file.mtime(file)
+        outdated <- last_modified > last_synced
 
-        if (!file.exists(file) || outdated )
-        {drive_download(file = as_id(registry_url),
-                        path = file,
-                overwrite = TRUE)}
+        if (!file.exists(local_file) || outdated ) {
+                drive_download(file = as_id(url),
+                               path = local_file,
+                               overwrite = TRUE)
+        }
+
+}
+
+registry_key_names <- function(registry_url = registry_url, registry_sheets = registry_sheets, file = registry_file) {
+
+        update_file_if_outdated(url = registry_url, sheets = registry_sheets, local_file = file)
+
         map_dfr(
                 registry_sheets,
                 ~ read_xlsx(path = file,
@@ -20,4 +28,12 @@ registry_key_names <- function(registry_url, registry_sheets, file = registry_fi
                 )
         ) %>%
                 mutate(Length = as.integer(Length))
+}
+
+get_strains <- function() {
+        update_file_if_outdated(url = strains_url, sheets = strains_sheets, local_file = strains_file)
+        read_xlsx(path = file,
+                  sheet = strains_sheets[1],
+                  range = "B3:B"
+                  )
 }

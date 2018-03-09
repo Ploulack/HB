@@ -8,6 +8,12 @@ FILE_NAME,
 # list of fields: strain_optional.plasmid_optional.group
 
 # The user then must tag a well as being either a blank, a standard, or an analyte
+#
+# Will need a mongo collection to store all sample names
+# A sample name must be unique under an experiment = experiment must be tied before hand to monitor sample uniqueness
+# There's no naming of a sample when it's part of an experiment: the name is generated from
+# - mutation site being tested,
+# - well positioning: user enters range of wells used
 
 
 ID,

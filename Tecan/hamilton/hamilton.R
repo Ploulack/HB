@@ -14,29 +14,28 @@ hami_ui <- function(id) {
                                      label = "Add Element"),
                         conditionalPanel(condition = paste0("output['", ns("has_parts"), "'] == true"),
                                          actionButton(inputId = ns("create_files"),
-                                                      label = "Generate"))        
+                                                      label = "Generate"))
                 )
         )
 }
 
-#paste0("output['",ns("type"),"'] == 'DNA Quantification'" )
-
-hami_server <- function(input, output, session, gtoken) {
+hami_server <- function(input, output, session) {
         library(shiny);library(tidyverse);library(stringr);library(purrr)
+
         source("helpers/part_widget.R")
         source("registry/registry_helpers.R")
         source("helpers/strings.R")
         source("hamilton/part_row.R")
         source("hamilton/generate_files.R")
-        
+
         ns <- session$ns
-        args_list <- list(type = "hamilton_PCR")
-        
+        type <- "hamilton_PCR"
+
         # Check if registry is loaded
         if (!exists("registry")) {
                 registry <- registry_key_names(registry_url, registry_sheets)
         }
-        
+
         # Initialize the parts storage reactive value
         parts <- reactiveVal(tibble(letter = character(),
                                     key = character(),
@@ -50,7 +49,7 @@ hami_server <- function(input, output, session, gtoken) {
                                     # template_position = character(),
                                     # l_primer_position = character()
                                     ))
-        
+
         # When user adds a part
         observeEvent(input$add_part,{
                 # Set identifying label as first unused letters A-Z, AA, AZ, etc...
@@ -69,19 +68,19 @@ hami_server <- function(input, output, session, gtoken) {
                          ui = part_row_ui(ns(paste0("Part_", current_label)),
                                           part_label = current_label,
                                           part_key = "",
-                                          args_list,
+                                          type,
                                           registry)
                 )
-                
+
                 callModule(module = part_row,
                            id = paste0("Part_", current_label),
                            parts = parts,
                            part_label = current_label,
                            part_key = "",
-                           args_list,
+                           type,
                            registry)
         })
-        
+
         #Generate a UI conditional variable used to switch the generate files button on/off
         output$has_parts <- reactive({
                 length(parts()$letter) > 0 && all(
@@ -89,7 +88,7 @@ hami_server <- function(input, output, session, gtoken) {
                                 ~ !is.null(input[[.x]]) && (input[[.x]] != "")))
         })
         outputOptions(output, "has_parts", suspendWhenHidden = FALSE)
-       
+
          # user presses the generate button, and this logic generates the various files
         observeEvent(input$create_files, {
                 # Generate the right_primers position column
@@ -105,7 +104,7 @@ hami_server <- function(input, output, session, gtoken) {
                 progress$set(message = "Generating files...", value = 0)
                 # Create the csv files
                 generate_files(parts, progress)
-                
+
                 link <- generate_operator_sheets(parts, progress)
                 progress$close()
                 showModal(modalDialog(
@@ -117,7 +116,7 @@ hami_server <- function(input, output, session, gtoken) {
                         easyClose = TRUE
                 ))
         })
-        
+
         observeEvent(input$protocol_type, {
                 #IN case of PCR, remove all 'parts rows'
                 walk(parts()$letter, ~ {

@@ -5,6 +5,7 @@ ms_ui <- function(id) {
 
         fluidPage(
                 sidebarPanel(width = 3,
+                             actionButton(ns("create_ms"),label = "Create MS instruction"),
                              select_file_ui(ns("files")),
                              checkboxGroupInput(inputId = ns("molecules"),
                                                 label = "Molecules",
