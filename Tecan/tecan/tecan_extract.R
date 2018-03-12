@@ -14,17 +14,6 @@ tecan_custom_msg <- function(tecan) {
                         xml_child() %>%
                         xml_child(6) %>%
                         xml_attr(attr = "description")
-
-                # tecan %>%
-                # xml_find_all("Script") %>%
-                # xml_contents() %>%
-                # xml_children() %>%
-                # xml_children() %>%
-                # pluck(1) %>%
-                # xml_children() %>%
-                # pluck(1) %>%
-                # xml_contents() %>%
-                # pluck(6)
                 }
 
         custom <- safely(custom_access)()
@@ -122,11 +111,17 @@ calc_values <- function(tecan_raw_data,
 
         list_delta <- tecan_raw_data %>%
                 map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%
+                map(~arrange(.x,
+                             str_extract(Sample, "[A-Z]"),
+                             as.integer(str_extract(Sample, "\\d+"))
+                             )) %>%
                 map(~mutate(.x,
                             Delta = Value - ifelse(!is.null(water_well_pos),
                                                    Value[water_well_pos],
                                                    water_readings[Wavelength]),
-                            Concentration = Delta / (molar_absorbance * path_length),
+                            Concentration = Delta / (molar_absorbance * path_length)
+                            )) %>%
+                map(~mutate(.x,
                             Index = row_number()))
 
         full_tbl <- list_delta %>%
