@@ -1,13 +1,11 @@
 
-
-
 FILE_NAME,
 "dipks_sample_1", #sample name, typed by the user in the UI
 
 #Fields that generate the sample to force the user to enter the proper sample name format:
 # list of fields: strain_optional.plasmid_optional.group
 
-# The user then must tag a well as being either a blank, a standard, or an analyte
+# The user then must tag a well as being either a blank, a standard, or an analyte  (Actually no, this will be done automatically)
 #
 # Will need a mongo collection to store all sample names
 # A sample name must be unique under an experiment = experiment must be tied before hand to monitor sample uniqueness
@@ -15,10 +13,10 @@ FILE_NAME,
 # - mutation site being tested,
 # - well positioning: user enters range of wells used
 
+FIELDS AT CSV GENERATION TIME
 
 ID,
 #sequential (no user input)
-
 
 MS_FILE,
 "C:\MassLynx\UNITARY.PRO\ACQUDB\General_all_20180213.exp"
@@ -39,6 +37,7 @@ INJ_VOL,
 
 TYPE,
 # The user then must tag a well as being either a blank, a standard, or an analyte
+# NO MADE AUTO
 
 CONC_A,
 # only standards have a value, others have ""
@@ -56,7 +55,7 @@ SPARE_1,
 FILE_TEXT
 # comma separated tags
 
-"1", #
+
 
 
 "C:\MassLynx\UNITARY.PRO\ACQUDB\General_all_20180213.exp","long_hold","2:4",3,"ANALYTE","","C:\MassLynx\IntelliStart\Results\Unit Mass Resolution\Calibration_20180302.cal","","2","Olivetol, dipks"

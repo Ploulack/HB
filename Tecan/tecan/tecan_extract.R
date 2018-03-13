@@ -58,9 +58,14 @@ tecan_data <- function(tecan) {
                                                    xml_children() %>%
                                                    xml_contents() %>%
                                                    xml_double()
-                ),
+                ) %>%
+                        arrange(
+                                str_extract(Sample, "[A-Z]"),
+                                as.integer(str_extract(Sample, "\\d+"))
+                        ),
                 "Wavelength" = wavelength)
-        }) %>% set_names(nm = paste0("Batch_", seq_along(.)))
+       }) %>%
+               set_names(nm = paste0("Batch_", seq_along(.)))
 
         if (nrow(data$Batch_1$Measures) == 0 || length(data$Batch_1$Wavelength) == 0) {
                 showNotification(ui = "Unknown file structure",
@@ -111,10 +116,6 @@ calc_values <- function(tecan_raw_data,
 
         list_delta <- tecan_raw_data %>%
                 map(~mutate(.x$Measures, Wavelength = .x$Wavelength)) %>%
-                map(~arrange(.x,
-                             str_extract(Sample, "[A-Z]"),
-                             as.integer(str_extract(Sample, "\\d+"))
-                             )) %>%
                 map(~mutate(.x,
                             Delta = Value - ifelse(!is.null(water_well_pos),
                                                    Value[water_well_pos],
@@ -127,6 +128,7 @@ calc_values <- function(tecan_raw_data,
         full_tbl <- list_delta %>%
                 #Bind into single tbl
                 map_dfr(~.x) %>%
+                #Use Index to group samples together (could use groups...)
                 arrange(Index) %>%
                 select(-Index)
 

@@ -41,5 +41,6 @@ get_strains <- function() {
         update_file_if_outdated(url = strains_url, sheets = strains_sheets, local_file = strains_file)
         read_xlsx(path = strains_file,
                   range = cell_cols(2)) %>%
-                pull()
+                pull() %>%
+                "["(-1)
 }

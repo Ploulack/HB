@@ -26,7 +26,7 @@ new_ms_modal <- function(ns, required_msg = NULL) {
 
 new_ms_unitary <- function(ns) {
         tagList(
-                checkboxInput("is_48_wells_plate",
+                checkboxInput(ns("is_48_wells_plate"),
                       "48 wells plate?",
                       FALSE),
         actionButton(ns("add_sample"), label = "Add Sample"),
@@ -36,7 +36,7 @@ new_ms_unitary <- function(ns) {
         )
 }
 
-sample_row_ui <- function(id, strains, plasmids) {
+sample_row_ui <- function(id, strains, plasmids, positions) {
         ns <- NS(id)
         tags$div(id = ns("sample_row"),
                  fluidRow(
@@ -46,13 +46,18 @@ sample_row_ui <- function(id, strains, plasmids) {
                                 ),
                          column(2,
                                 selectizeInput(inputId = ns("plasmid"),
-                                        label = "Select Plasmid (optional)",
-                                        choices = plasmids)
+                                        label = "Plasmid (optional)",
+                                        choices = plasmids %>% prepend(NA))
+                                ),
+                         column(2,
+                                selectizeInput(inputId = ns("pos"),
+                                               label = "Plate pos",
+                                               choices = positions)
                                 ),
                          column(width = 2,
                                 selectInput(inputId = ns("group_id"),
                                             label = "Tag Group",
-                                            choices = 1:48)
+                                            choices = 1:48 %>% prepend(NA))
                                 ),
                          column(width = 1,
                                 actionButton(inputId = ns("delete_sample"),
@@ -65,34 +70,60 @@ sample_row_ui <- function(id, strains, plasmids) {
                  ))
 }
 
-update_from_input <- function(ms_samples, input_react, row_nb, var_name) {
-        observeEvent(input_react, {
-                browser()
-                samples <- ms_samples()
-                samples[[var_name]][pos_row()] <- input_react
-                ms_samples(samples)
-        }, ignoreInit = TRUE)
-}
+update_from_input <- function(var_name, ms_samples, input, sample_label) {
+        force(var_name)
 
-sample_row_server <- function(input, output, session, ms_samples, sample_pos) {
-        ns <- session$ns
-
-        pos_row <- reactive({
-                which(ms_samples()$pos == sample_pos)
+        row <- reactive({
+                which(ms_samples()$label == sample_label)
         })
 
-        update_from_input(ms_samples, input$strain, pos_row, "strain")
-        update_from_input(ms_samples, input$plasmid, pos_row, "plasmid")
-        update_from_input(ms_samples, input$group_id, pos_row, "group_id")
+        observeEvent(input[[var_name]], {
+                samples <- ms_samples()
+                samples[[var_name]][row()] <- input[[var_name]]
+                ms_samples(samples)
+                print(ms_samples())
+        })
+}
+
+sample_row_server <- function(input, output, session, ms_samples, sample_label) {
+        ns <- session$ns
+
+        fields <- c("strain", "plasmid", "pos", "group_id")
+
+        walk(
+                fields,
+                ~ update_from_input(., ms_samples, input, sample_label)
+        )
 
 
         #Delete a part's UI and parts() row
-        observeEvent(input$delete_part, {
+        observeEvent(input$delete_sample, {
                 removeUI(selector = paste0("#", ns("sample_row")))
                 isolate(
                         ms_samples(
                                 ms_samples() %>%
-                                        filter(pos != sample_pos))
+                                        filter(label != sample_label))
                 )
         })
+}
+
+generate_sample_list_csv <- function(samples_tbl) {
+        browser()
+        samples_tbl %>%
+                arrange(str_extract(pos, "[A-Z]"),
+                        as.integer(str_extract(pos, "\\d+"))
+                ) %>%
+                mutate(ID = row_number(),
+                        FILE_NAME = paste(strain,
+                                         plasmid,
+                                         ID,
+                                         if_else(is.na(group_id), "", paste0("G-",group_id)),
+                                         sep = "_"),
+                       MS_FILE = "C:\\MassLynx\\UNITARY.PRO\\ACQUDB\\General_all_20180213.exp",
+                       INLET_FILE = "long_hold",
+                       #Nb 2 is the plate number, plate #1 is ran just before and includes standards and blanks...
+                       SAMPLE_LOCATION = paste0("2:",str_sub(pos, end = 1), ",", str_sub(pos, start = 2)),
+                       INJ_VOL = 3,
+                       TYPE = "ANALYTE"
+                       )
 }

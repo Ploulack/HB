@@ -2,6 +2,7 @@ library(shiny); library(rvest)
 ms_server <- function(input, output, session) {
         source("ms/ms_extract.R"); source("ms/ms_functions.R")
         source("registry/registry_helpers.R"); source("helpers/strings.R")
+        source("helpers/plates_helpers.R")
 
         options(shiny.trace = FALSE)
         ns <- session$ns
@@ -30,38 +31,52 @@ ms_server <- function(input, output, session) {
 
         ms_samples <- reactiveVal(
                 tibble(
-                        pos = character(),
+                        label = character(),
                         strain = character(),
                         plasmid = character(),
-                        group_id = character()
+                        group_id = character(),
+                        pos = character()
                 )
         )
 
-        # new_ms <- reactiveValues()
+        available_pos <- reactive({
+
+                if (input$is_48_wells_plate) {
+
+                } else {
+                generate_96_pos() %>%
+                                keep(~!(. %in% ms_samples()$pos))
+                }
+        })
 
         observeEvent(input$add_sample, {
 
                 #To change, for now, keep using letters
-                current_pos <- first_unused(ms_samples()$pos)
+                current_label <- first_unused(ms_samples()$label)
 
                 # Add new row for the new letter
                 ms_samples(
                         ms_samples() %>%
-                                add_row(pos = current_pos)
+                                add_row(label = current_label)
                 )
 
                 insertUI(selector = paste0("#",ns("add_sample")),
                          where = "beforeBegin",
-                         ui = sample_row_ui(ns(paste0("sample_", current_pos)),
+                         ui = sample_row_ui(ns(paste0("sample_", current_label)),
                                           dics$strains,
-                                          dics$plasmids)
+                                          dics$plasmids,
+                                          available_pos())
                 )
 
                 callModule(module = sample_row_server,
-                           id = paste0("sample_", current_pos),
+                           id = paste0("sample_", current_label),
                            ms_samples = ms_samples,
-                           sample_pos = current_pos)
+                           sample_label = current_label)
 
+        })
+
+        observeEvent(input$new_ms_ok, {
+                csv_file <- generate_sample_list_csv(ms_samples())
         })
 
         #### INIT & FILE HANDLING ####
