@@ -143,7 +143,7 @@ tecan_server <- function(input, output, session) {
                                   row.names = FALSE)
 
                 drive_upload(media = tmp_norm_csv,
-                             path = selected_prot$hami_folder_url %>% as_id())
+                             path = selected_prot$tecan_csv_folder_url %>% as_id())
 
         }, ignoreInit = TRUE)
 

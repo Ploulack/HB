@@ -25,8 +25,11 @@ get_drive_url <- function(session, name) {
                        else trash_prod_drive_URL},
                #MS
                ms = ifelse(is_dev, ms_dev_drive_url, ms_prod_drive_url),
+               #MS ongoing edit folder
+               ms_ongoing_edit = ifelse(is_dev, ongoing_edit_dev, ongoing_edit_prod),
                # Parent folder for CSVs needed by the Pooling method
-               hami = ifelse(is_dev, protocols_hami_folder_dev, protocols_hami_folder_prod),
+               tecan_csv_folder_url = ifelse(is_dev, protocols_hami_folder_dev, protocols_hami_folder_prod),
+               ms_csv_folder_url = ifelse(is_dev, protocols_ms_run_csvs_dev, protocols_ms_run_csvs_prod),
                # Spreadsheet to edit & track experiments
                experiments = ifelse(is_dev, protocols_sheet_dev, protocols_sheet_prod),
                # CSV with list of ongoing experiments

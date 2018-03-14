@@ -31,6 +31,8 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
         update_hami_csv <- FALSE
 
         folder_url <- paste0(tab_name,"_folder_url")
+        csv_folder <- paste0(tab_name, "_csv_folder_url")
+
         protocols <- prot_gsheet %>%
                 gs_read() %>%
                 mutate(date_finished = lubridate::dmy(date_finished)) %>%
@@ -45,16 +47,13 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
 
                 #TODO: Add a condition like the name is not empty
 
-
                 if (is.na(prot_row %>% "["(folder_url))) {
 
                         drbl <- drive_create_or_get_folder(parent_folder = drive_folder,
                                                    folder_name = prot_row$name)
 
-
                         plates_processed <- get_plates_tracking_drbl(prot_row, drbl, tab_name)
                         stopifnot(is_dribble(plates_processed))
-
 
                         # Get the new folder link
                         links <- list(drbl, plates_processed) %>%
@@ -63,19 +62,15 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
                         #Add processed plate tracking csv link to current protocols tibble
                         protocols[i, paste0(tab_name, "_plates_processed_url")] <- links[2]
 
+                        if (is.na(prot_row[[csv_folder]])) {
 
-                        # Check if the hamilton folder link exists or not
-                        if (tab_name == "tecan") {
-                                if (is.na(prot_row$hami_folder_url)) {
-
-                                        hami_drbl <- drive_create_or_get_folder(get_drive_url(session, "hami"),
-                                                                                prot_row$name)
-                                        #Add hamilton folder link to current protocols tibble
-                                        protocols[i, "hami_folder_url"] <- dribble_get_link(hami_drbl)
-                                        links[3] <- hami_drbl
-                                }
-                                update_hami_csv <- TRUE
+                                csv_folder_drbl <- drive_create_or_get_folder(get_drive_url(session, csv_folder),
+                                                                        prot_row$name)
+                                #Add csv folder link to current protocols tibble
+                                protocols[i, csv_folder] <- dribble_get_link(csv_folder_drbl)
+                                links[3] <- dribble_get_link(csv_folder_drbl)
                         }
+                        update_hami_csv <- TRUE
 
                         protocols[i, folder_url] <- links[1]
 
@@ -89,8 +84,9 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
                                       byrow = TRUE)
                 }
         }
-
-        if (update_hami_csv) {
+        #Update the list of experiments csv file used by hamilton method to pop the user experiment selection
+        #for experiment dependent methods (eg: Pooling)
+        if (update_hami_csv & tab_name == "tecan") {
                 tmp_path <- "temp/protocols_list.csv"
 
                 protocols %>%
@@ -153,90 +149,6 @@ protocols_set_modal <- function(input, file_name, custom_msg, protocols,required
 
 }
 
-# protocols_set_modal <- function(input, file_name, custom_msg, protocols,required_msg = NULL, session) {
-#         #TODO: gestion db...
-#         ns <- session$ns
-#         csv_non_proc_str <- "unprocessed"
-#         default_set_prot <- "Select protocol"
-#         protocols_sheet <- {if (is_dev_server(session)) protocols_sheet_dev
-#                 else protocols_sheet_prod}
-#
-#         showModal(
-#                 modalDialog(
-#                         div(str_interp("Custom message for ${file_name} is ${custom_msg}.")),
-#
-#                         selectInput(inputId = ns("set_protocol"),
-#                                     label = "Select matching protocol",
-#                                     choices = protocols$name[-1] %>% prepend(default_set_prot)),
-#
-#                         conditionalPanel(condition = paste0("input['", ns("set_protocol"), "'] != '", default_set_prot, "'"),
-#                                          fluidRow(
-#                                                  column(2, selectInput(inputId = ns("set_plate_nb"),
-#                                                                        label = "Select plate nb",
-#                                                                        choices = "",
-#                                                                        multiple = FALSE
-#                                                  )),
-#                                                  column(3, numericInput(ns("tecan_sample_vol"),
-#                                                                         label = "Sampling uL for Tecan reading",
-#                                                                         value = 10,
-#                                                                         min = 10,
-#                                                                         max = 50,
-#                                                                         step = 5
-#                                                  )),
-#                                                  column(3, numericInput(ns("tecan_water_vol"),
-#                                                                         label = "Water added for Tecan reading",
-#                                                                         value = 40,
-#                                                                         min = 30,
-#                                                                         max = 50,
-#                                                                         step = 5
-#                                                  ))
-#                                          ),
-#                                          fluidRow(
-#
-#                                                  column(3, numericInput(ns("well_volume"),
-#                                                                         label = "Wells to pool current vol",
-#                                                                         value = 50,
-#                                                                         min = 40,
-#                                                                         max = 200,
-#                                                                         step = 10
-#                                                  )),
-#                                                  column(3, numericInput(ns("dw_min_conc"),
-#                                                                         label = "Minimum final pool conc.",
-#                                                                         value = 100,
-#                                                                         min = 0,
-#                                                                         max = 1000,
-#                                                                         step = 5
-#                                                  )),
-#                                                  column(3, numericInput(ns("min_nb_wells"),
-#                                                                         label = "Min wells nb to pool",
-#                                                                         value = 1,
-#                                                                         min = 1,
-#                                                                         max = 96))
-#                                          ),
-#                                          fluidRow(
-#                                                  column(width = 6, tableOutput(ns("pooling"))),
-#                                                  column(offset = 1, width = 4,
-#                                                         htmlOutput(ns("deep_well")))
-#                                          )
-#                         ),
-#
-#                         if (!is.null(required_msg))
-#                                 div(tags$b(required_msg, style = "color: red;")),
-#                         footer = tagList(
-#                                 actionButton(inputId = ns("ok_protocol"),
-#                                              label = "OK"),
-#                                 # actionButton(inputId = ns("preview_pooling"),
-#                                 #              label = "Preview"),
-#                                 tags$a(class = "btn btn-default",
-#                                        href = protocols_sheet,
-#                                        "Create new protocol",
-#                                        target = "_blank")
-#                         ),
-#                         size = "l"
-#                 ))
-#
-#
-# }
 
 move_drive_file <- function(tecan_n, prot_name, instrument) {
         folder_url <- paste0(instrument, "_folder_url")

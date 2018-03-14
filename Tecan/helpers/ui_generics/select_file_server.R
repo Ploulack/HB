@@ -12,6 +12,7 @@ select_file <- function(input,
 
 
         #build the protocol tibble from the spread sheet
+        #TODO: keep a local version and only update...(or full switch to mongo)
         if (!exists("protocols")) {
                 progress$inc(.1, detail = "Accessing experiments.")
                 source("protocols/protocols_functions.R");

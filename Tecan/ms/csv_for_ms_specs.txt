@@ -59,3 +59,5 @@ FILE_TEXT
 
 
 "C:\MassLynx\UNITARY.PRO\ACQUDB\General_all_20180213.exp","long_hold","2:4",3,"ANALYTE","","C:\MassLynx\IntelliStart\Results\Unit Mass Resolution\Calibration_20180302.cal","","2","Olivetol, dipks"
+
+YYYY_MM_DD_USERINPUT_USERNAME

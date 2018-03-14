@@ -81,7 +81,7 @@ hami_server <- function(input, output, session) {
                            registry)
         })
 
-        #Generate a UI conditional variable used to switch the generate files button on/off
+        # Generate a UI conditional variable used to switch the generate files button on/off
         output$has_parts <- reactive({
                 length(parts()$letter) > 0 && all(
                         map_lgl(paste0("Part_", parts()$letter,"-",parts()$letter,"-well_key"),

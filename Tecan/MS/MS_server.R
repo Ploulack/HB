@@ -9,9 +9,56 @@ ms_server <- function(input, output, session) {
 
         dics <- reactiveValues()
 
+        #### INIT & FILE HANDLING ####
+        source("helpers/ui_generics/select_file_server.R")
+        source("helpers/general.R"); source("protocols/protocols_module.R")
+        source("mongo/db_values.R"); source("helpers/mongo_helpers.R")
+        tab_name <-  str_extract(session$ns(""), "^\\w+")
+        selected <- reactiveVal()
+        ms_folder <- get_drive_url(session, tab_name)
+        ms_progress <- shiny::Progress$new()
+
+        ms <- callModule(module = select_file,
+                id = "files",
+                progress = ms_progress,
+                drive_url = ms_folder,
+                selected = selected
+        )
+
+        ms$tbl <- reactiveVal(NULL)
+
+        obtain_file_data(
+                ms$go_file,
+                "MS",
+                file_container = ms,
+                dat_container = ms$tbl,
+                extract_function = extract_ms
+        )
+
+        #### PROTOCOLS ####
+        ms_p <- callModule(module = protocols_handler,
+                           id = "ms",
+                           file_container = ms,
+                           data_container = ms$tbl,
+                           selected = selected,
+                           db = ms_db)
+
+
         #### GENERATE MS RUN ####
+        ms_samples <- reactiveVal(
+                tibble(
+                        label = character(),
+                        strain = character(),
+                        plasmid = character(),
+                        group_id = character(),
+                        pos = character()
+                )
+        )
+
         observeEvent(input$create_ms, {
-                new_ms_modal(ns)
+                ms_edit <- check_ongoing_edit(get_drive_url(session,"ms_ongoing_edit"))
+                if (ms_edit$is_ongoing)
+                new_ms_modal(ns, ms$protocols()$name, ms_edit)
 
                 if (!exists("registry")) {
                         print("Loading Registry")
@@ -29,20 +76,9 @@ ms_server <- function(input, output, session) {
                 }
         })
 
-        ms_samples <- reactiveVal(
-                tibble(
-                        label = character(),
-                        strain = character(),
-                        plasmid = character(),
-                        group_id = character(),
-                        pos = character()
-                )
-        )
 
         available_pos <- reactive({
-
                 if (input$is_48_wells_plate) {
-
                 } else {
                 generate_96_pos() %>%
                                 keep(~!(. %in% ms_samples()$pos))
@@ -76,36 +112,25 @@ ms_server <- function(input, output, session) {
         })
 
         observeEvent(input$new_ms_ok, {
-                csv_file <- generate_sample_list_csv(ms_samples())
+                user_name <- drive_user()$displayName
+                date <- Sys.time() %>%
+                        force_tz(tzone = "America/Montreal")
+
+                file_name <- paste("temp/", input$csv_note, user_name, "UNITARY", date, ".csv", sep = "_")
+                browser()
+                generate_sample_list_csv(ms_samples()) %>%
+                        write.csv(file = file_name,
+                                  quote = TRUE,
+                                  eol = "\r\n",
+                                  row.names = FALSE)
+
+                drive_upload(media = file_name,
+                             path = ms$protocols %>%
+                                     filter(Name == input$new_ms_protocol) %>%
+                                     pull(ms_csv_folder_url))
         })
 
-        #### INIT & FILE HANDLING ####
-        source("helpers/ui_generics/select_file_server.R")
-        source("helpers/general.R"); source("protocols/protocols_module.R")
-        source("mongo/db_values.R"); source("helpers/mongo_helpers.R")
-        tab_name <-  str_extract(session$ns(""), "^\\w+")
-        selected <- reactiveVal()
-        ms_folder <- get_drive_url(session, tab_name)
-        ms_progress <- shiny::Progress$new()
-
-        ms <- callModule(module = select_file,
-                id = "files",
-                progress = ms_progress,
-                drive_url = ms_folder,
-                selected = selected
-        )
-
-        ms$tbl <- reactiveVal(NULL)
-
-        obtain_file_data(
-                ms$go_file,
-                "MS",
-                file_container = ms,
-                dat_container = ms$tbl,
-                extract_function = extract_ms
-        )
-
-        #### DB storage ####
+        #### DB STORAGE ####
         ms_db <- db_from_environment(session, collection = "ms")
 
         file_record <- eventReactive(ms$go_file(), {
@@ -129,13 +154,6 @@ ms_server <- function(input, output, session) {
                 return(record)
         })
 
-        #### PROTOCOLS ####
-        ms_p <- callModule(module = protocols_handler,
-                           id = "ms",
-                           file_container = ms,
-                           data_container = ms$tbl,
-                           selected = selected,
-                           db = ms_db)
 
         #### GRAPHIC LAYOUT TESTS FOR MS DATA DIPLAY ####
 
