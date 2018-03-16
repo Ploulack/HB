@@ -1,12 +1,14 @@
 library(shiny); library(rvest)
+library(purrrlyr);
+
 ms_server <- function(input, output, session) {
         source("ms/ms_extract.R"); source("ms/ms_functions.R")
         source("registry/registry_helpers.R"); source("helpers/strings.R")
         source("helpers/plates_helpers.R")
 
         options(shiny.trace = FALSE)
+        user <- drive_user()$displayName
         ns <- session$ns
-
         dics <- reactiveValues()
 
         #### INIT & FILE HANDLING ####
@@ -54,12 +56,17 @@ ms_server <- function(input, output, session) {
                         pos = character()
                 )
         )
-
+        ms_edit <- list(
+                data = NULL,
+                is_ongoing = FALSE,
+                is_48 = FALSE,
+                experiment = "",
+                file_note = "",
+                drbl = NULL
+                        )
+        # TODO: make this a reactiveValues....won't work across observers like this it seems
+        # I have to understand more scopes in shiny...
         observeEvent(input$create_ms, {
-                ms_edit <- check_ongoing_edit(get_drive_url(session,"ms_ongoing_edit"))
-                if (ms_edit$is_ongoing)
-                new_ms_modal(ns, ms$protocols()$name, ms_edit)
-
                 if (!exists("registry")) {
                         print("Loading Registry")
                         registry <- registry_key_names(registry_url, registry_sheets)
@@ -74,18 +81,59 @@ ms_server <- function(input, output, session) {
                         print("Loading Strains")
                         dics$strains <- get_strains()
                 }
-        })
 
+                ms_edit <<- check_ongoing_edit(get_drive_url(session,"ms_ongoing_edit"), user)
+                if (ms_edit$is_ongoing) {
+                        new_ms_modal(ns, ms$protocols()$name, ms_edit)
+                        ms_samples(ms_edit$data %>%
+                                           arrange(str_extract(pos, "[A-Z]"),
+                                                   str_extract(pos, "\\d+")
+                                           )
+                        )
+
+                        ms_samples()  %>%
+                                by_row(..f = ~ add_sample(ns = ns,
+                                                         label = .x$label,
+                                                         dics = dics,
+                                                         available_positions = if (ms_edit$is_48) {} else generate_96_pos(),
+                                                         ms_samples,
+                                                         strain = .x$strain,
+                                                         plasmid = .x$plasmid,
+                                                         group_id = .x$group_id,
+                                                         pos = .x$pos
+                                )
+                                )
+                } else {
+                        new_ms_modal(ns, ms$protocols()$name)
+                }
+
+        })
 
         available_pos <- reactive({
                 if (input$is_48_wells_plate) {
                 } else {
-                generate_96_pos() %>%
-                                keep(~!(. %in% ms_samples()$pos))
+                generate_96_pos()
+                        # %>%
+                        #         keep(~!(. %in% ms_samples()$pos))
                 }
         })
 
+        csv_name <- reactive({
+                is_48_str <- if (input$is_48_wells_plate) "is_48" else "is_96"
+                experiment <- input$new_ms_experiment
+                csv_name <- str_interp("exp_${experiment}_${is_48_str}_${user}_note_${input$csv_note}.csv")
+        })
+
         observeEvent(input$add_sample, {
+                browser()
+
+                if (ms_samples() %>% nrow() >0) {
+                        save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
+                                                     csv_name = csv_name(),
+                                                     samples = ms_samples(),
+                                                     ms_edit = ms_edit)
+                }
+
 
                 #To change, for now, keep using letters
                 current_label <- first_unused(ms_samples()$label)
@@ -95,29 +143,25 @@ ms_server <- function(input, output, session) {
                         ms_samples() %>%
                                 add_row(label = current_label)
                 )
-
-                insertUI(selector = paste0("#",ns("add_sample")),
-                         where = "beforeBegin",
-                         ui = sample_row_ui(ns(paste0("sample_", current_label)),
-                                          dics$strains,
-                                          dics$plasmids,
-                                          available_pos())
-                )
-
-                callModule(module = sample_row_server,
-                           id = paste0("sample_", current_label),
+                add_sample(ns,
+                           label = current_label,
+                           dics = dics,
+                           available_positions = available_pos(),
                            ms_samples = ms_samples,
-                           sample_label = current_label)
+                           pos = available_pos() %>%
+                                   keep(~!(. %in% ms_samples()$pos)) %>%
+                                   first())
+
 
         })
 
         observeEvent(input$new_ms_ok, {
-                user_name <- drive_user()$displayName
+
                 date <- Sys.time() %>%
                         force_tz(tzone = "America/Montreal")
 
-                file_name <- paste("temp/", input$csv_note, user_name, "UNITARY", date, ".csv", sep = "_")
-                browser()
+                file_name <- paste("temp/", input$csv_note, user, "UNITARY", date, ".csv", sep = "_")
+
                 generate_sample_list_csv(ms_samples()) %>%
                         write.csv(file = file_name,
                                   quote = TRUE,
@@ -125,9 +169,11 @@ ms_server <- function(input, output, session) {
                                   row.names = FALSE)
 
                 drive_upload(media = file_name,
-                             path = ms$protocols %>%
-                                     filter(Name == input$new_ms_protocol) %>%
-                                     pull(ms_csv_folder_url))
+                             path = ms$protocols() %>%
+                                     filter(name == input$new_ms_experiment) %>%
+                                     pull(ms_csv_folder_url) %>%
+                                     as_id()
+                             )
         })
 
         #### DB STORAGE ####

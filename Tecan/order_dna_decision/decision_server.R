@@ -8,9 +8,6 @@ decision_server <- function(input, output, session, gtoken) {
         source("order_dna_decision/import_dna_decision_data.R")
         source("order_dna_decision/decision_values.R")
 
-        #Getting the Google APIs key & secret...
-        source("ms/ms_values.R")
-
 
         assemply_sheets <- get_assembly_costs(url)
         step_values <- assemply_sheets$steps %>%

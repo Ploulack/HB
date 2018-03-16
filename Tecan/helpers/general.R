@@ -26,7 +26,7 @@ get_drive_url <- function(session, name) {
                #MS
                ms = ifelse(is_dev, ms_dev_drive_url, ms_prod_drive_url),
                #MS ongoing edit folder
-               ms_ongoing_edit = ifelse(is_dev, ongoing_edit_dev, ongoing_edit_prod),
+               ms_ongoing_edit = ifelse(is_dev, ms_ongoing_edit_dev, ms_ongoing_edit_prod),
                # Parent folder for CSVs needed by the Pooling method
                tecan_csv_folder_url = ifelse(is_dev, protocols_hami_folder_dev, protocols_hami_folder_prod),
                ms_csv_folder_url = ifelse(is_dev, protocols_ms_run_csvs_dev, protocols_ms_run_csvs_prod),
@@ -68,4 +68,12 @@ obtain_file_data <- function(go_button,
                         if (!is.null(data_saved_flag)) data_saved_flag(FALSE)
                 }
         }, priority = 3)
+}
+
+if_exists_than_that <- function(x, if_not = NULL) {
+        if (is.null(x) || is.na(x) || x == "") {
+                if_not
+        } else {
+                x
+        }
 }
