@@ -39,6 +39,13 @@ generate_96_pos <- function() {
                 unlist()
 }
 
+generate_48_pos <- function() {
+        map(LETTERS[1:6], function(x) {
+                map_chr(1:8, ~ paste0(.x, x))
+        }) %>%
+                unlist()
+}
+
 #Matches A-Z, AA-AZ, etc.. to 96 plates positions
 letter_to_96_pos <- function(letter) {
         l <- str_length(letter)

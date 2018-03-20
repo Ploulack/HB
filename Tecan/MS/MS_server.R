@@ -56,16 +56,19 @@ ms_server <- function(input, output, session) {
                         pos = character()
                 )
         )
-        ms_edit <- list(
-                data = NULL,
-                is_ongoing = FALSE,
-                is_48 = FALSE,
-                experiment = "",
-                file_note = "",
-                drbl = NULL
-                        )
-        # TODO: make this a reactiveValues....won't work across observers like this it seems
-        # I have to understand more scopes in shiny...
+        ms_edit <- reactiveValues(
+                is_ongoing = FALSE
+        )
+
+        # ms_edit <- reactiveValues(
+        #         data = NULL,
+        #         is_ongoing = FALSE,
+        #         is_48 = FALSE,
+        #         experiment = "",
+        #         file_note = "",
+        #         drbl = NULL
+        # )
+
         observeEvent(input$create_ms, {
                 if (!exists("registry")) {
                         print("Loading Registry")
@@ -82,7 +85,8 @@ ms_server <- function(input, output, session) {
                         dics$strains <- get_strains()
                 }
 
-                ms_edit <<- check_ongoing_edit(get_drive_url(session,"ms_ongoing_edit"), user)
+                check_ongoing_edit(get_drive_url(session,"ms_ongoing_edit"), user, ms_edit)
+
                 if (ms_edit$is_ongoing) {
                         new_ms_modal(ns, ms$protocols()$name, ms_edit)
                         ms_samples(ms_edit$data %>%
@@ -109,12 +113,19 @@ ms_server <- function(input, output, session) {
 
         })
 
+        observeEvent(input$new_ms_cancel, {
+                ms_samples(
+                        ms_samples() %>%
+                                slice(0)
+                )
+                removeModal()
+
+        })
+
         available_pos <- reactive({
                 if (input$is_48_wells_plate) {
                 } else {
                 generate_96_pos()
-                        # %>%
-                        #         keep(~!(. %in% ms_samples()$pos))
                 }
         })
 
@@ -125,15 +136,13 @@ ms_server <- function(input, output, session) {
         })
 
         observeEvent(input$add_sample, {
-                browser()
 
-                if (ms_samples() %>% nrow() >0) {
-                        save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
+                if (ms_samples() %>% nrow() > 0) {
+                       ms_edit <- save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
                                                      csv_name = csv_name(),
                                                      samples = ms_samples(),
                                                      ms_edit = ms_edit)
                 }
-
 
                 #To change, for now, keep using letters
                 current_label <- first_unused(ms_samples()$label)
@@ -168,12 +177,22 @@ ms_server <- function(input, output, session) {
                                   eol = "\r\n",
                                   row.names = FALSE)
 
-                drive_upload(media = file_name,
-                             path = ms$protocols() %>%
-                                     filter(name == input$new_ms_experiment) %>%
-                                     pull(ms_csv_folder_url) %>%
-                                     as_id()
-                             )
+                upload_drbl <- drive_upload(media = file_name,
+                                            path = ms$protocols() %>%
+                                                    filter(name == input$new_ms_experiment) %>%
+                                                    pull(ms_csv_folder_url) %>%
+                                                    as_id()
+                )
+                if (is_dribble(upload_drbl)) {
+                        drive_trash(ms_edit$drbl)
+                        ms_samples(
+                                ms_samples() %>%
+                                        slice(0)
+                        )
+                        removeModal()
+                }
+
+
         })
 
         #### DB STORAGE ####
@@ -240,7 +259,6 @@ ms_server <- function(input, output, session) {
                                                  selected = non_0_conc_choices)
 
                 } else if (!is.null(stored_choices())) {
-                        browser()
                         updateCheckboxGroupInput(session = session,
                                                  inputId = "samples",
                                                  selected = stored_choices())
@@ -302,7 +320,7 @@ ms_server <- function(input, output, session) {
                 x <- click_x - round(click_x) + 1/2
 
                 molecule_name <- molecule_lvls[which.min(abs(splits - x))]
-                # browser()
+
                 value <- display_tbl() %>%
                         filter(Molecule == molecule_name & Name == name) %>%
                         pull(Mean)
