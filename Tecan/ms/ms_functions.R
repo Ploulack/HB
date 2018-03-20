@@ -178,7 +178,9 @@ generate_sample_list_csv <- function(samples_tbl) {
                        MS_TUNE_FILE = paste0("C:\\MassLynx\\IntelliStart\\Results\\Unit Mass Resolution\\",
                                              cal_file_name)
                ) %>%
+               mutate(Index = row_number()) %>%
                select(
+                       Index,
                        FILE_NAME,
                        ID,
                        MS_FILE,

@@ -1,5 +1,9 @@
 #### MONGO SHELL SCRIPT ####
 
+
+Dump db
+mongoexport -h ds040027.mlab.com:40027 -d production -c lab_experiments -u <prod_user> -p <prod_pwd> -o <file_path>
+
 mongo ds036967.mlab.com:36967/hblab -u <user> -p <pwd>
 
 db.createRole({role: "app_client", privileges: [ { resource : { db : "hblab", collection : "ms"}, actions : [ "find", "insert", "remove", "update"] }], roles : [] })
