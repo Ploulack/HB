@@ -47,7 +47,7 @@ function(input, output, session) {
         # MS
         observeEvent(input$ms_go, {
                 shiny::validate(need((input$ms_go > 0), message = FALSE))
-                source("ms/ms_server.R")
+                source("ms/MS_server.R")
                 callModule(ms_server, "ms")
         })
 
