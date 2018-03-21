@@ -4,7 +4,7 @@ library(purrrlyr);
 ms_server <- function(input, output, session) {
         source("ms/ms_extract.R"); source("ms/ms_functions.R")
         source("registry/registry_helpers.R"); source("helpers/strings.R")
-        source("helpers/plates_helpers.R")
+        source("helpers/plates_helpers.R"); source("mongo/tags.R")
 
         options(shiny.trace = FALSE)
         user <- drive_user()$displayName
@@ -53,23 +53,18 @@ ms_server <- function(input, output, session) {
                         strain = character(),
                         plasmid = character(),
                         group_id = character(),
-                        pos = character()
+                        pos = character(),
+                        tags = character()
                 )
         )
         ms_edit <- reactiveValues(
                 is_ongoing = FALSE
         )
 
-        # ms_edit <- reactiveValues(
-        #         data = NULL,
-        #         is_ongoing = FALSE,
-        #         is_48 = FALSE,
-        #         experiment = "",
-        #         file_note = "",
-        #         drbl = NULL
-        # )
+        db_tags <- db_from_environment(session, "tags")
 
         observeEvent(input$create_ms, {
+
                 if (!exists("registry")) {
                         print("Loading Registry")
                         registry <- registry_key_names(registry_url, registry_sheets)
@@ -96,11 +91,12 @@ ms_server <- function(input, output, session) {
                         )
 
                         ms_samples()  %>%
-                                by_row(..f = ~ add_sample(ns = ns,
+                                by_row(..f = ~ add_sample(session =session,
                                                          label = .x$label,
                                                          dics = dics,
                                                          available_positions = if (ms_edit$is_48) {} else generate_96_pos(),
                                                          ms_samples,
+                                                         db = db_tags,
                                                          strain = .x$strain,
                                                          plasmid = .x$plasmid,
                                                          group_id = .x$group_id,
@@ -110,15 +106,6 @@ ms_server <- function(input, output, session) {
                 } else {
                         new_ms_modal(ns, ms$protocols()$name)
                 }
-
-        })
-
-        observeEvent(input$new_ms_cancel, {
-                ms_samples(
-                        ms_samples() %>%
-                                slice(0)
-                )
-                removeModal()
 
         })
 
@@ -152,11 +139,13 @@ ms_server <- function(input, output, session) {
                         ms_samples() %>%
                                 add_row(label = current_label)
                 )
-                add_sample(ns,
+
+                add_sample(session,
                            label = current_label,
                            dics = dics,
                            available_positions = available_pos(),
                            ms_samples = ms_samples,
+                           db = db_tags,
                            pos = available_pos() %>%
                                    keep(~!(. %in% ms_samples()$pos)) %>%
                                    first())
@@ -191,7 +180,14 @@ ms_server <- function(input, output, session) {
                         )
                         removeModal()
                 }
+        })
 
+        observeEvent(input$new_ms_cancel, {
+                ms_samples(
+                        ms_samples() %>%
+                                slice(0)
+                )
+                removeModal()
 
         })
 

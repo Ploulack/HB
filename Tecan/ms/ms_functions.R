@@ -79,15 +79,18 @@ sample_row_ui <- function(id, strains, plasmids, positions,
                                             choices = 1:48 %>% prepend(NA),
                                             selected = if_exists_than_that(group_id))
                          ),
+                         column(width = 3,
+                                uiOutput(ns("tags_widget"))
+                         ),
                          column(width = 1,
                                 actionButton(inputId = ns("delete_sample"),
                                              label = "Delete")
                          )
                  ),
                  fluidRow(
-                         tableOutput(outputId = ns("info")),
                          tags$hr()
-                 ))
+                 )
+        )
 }
 
 update_from_input <- function(var_name, ms_samples, input, sample_label) {
@@ -97,24 +100,80 @@ update_from_input <- function(var_name, ms_samples, input, sample_label) {
                 which(ms_samples()$label == sample_label)
         })
 
+
         observeEvent(input[[var_name]], {
-                samples <- ms_samples()
-                samples[[var_name]][row()] <- ifelse(input[[var_name]] == "NA", NA, input[[var_name]])
-                ms_samples(samples)
-                print(ms_samples())
+            # Concactenating the various tags into a single string
+            value <- if (length(input[[var_name]]) > 1) {
+                str_c(input[[var_name]], collapse = ", ")
+            } else if (input[[var_name]] == "NA") {
+                NA
+            } else {
+                input[[var_name]]
+            }
+            samples <- ms_samples()
+            samples[[var_name]][row()] <- value
+            ms_samples(samples)
+            print(ms_samples())
         })
 }
 
-sample_row_server <- function(input, output, session, ms_samples, sample_label) {
+# update_samples_tbl_from_input <- function(input_reactive, var_name, ms_samples, sample_label) {
+#         force(var_name)
+#         browser()
+#         row <- reactive({
+#                 which(ms_samples()$label == sample_label)
+#         })
+#
+#         observeEvent(input_reactive(), {
+#                 samples <- ms_samples()
+#                 samples[[var_name]][row()] <- ifelse(input_reactive() == "NA", NA, input_reactive())
+#                 ms_samples(samples)
+#                 print(ms_samples())
+#         })
+# }
+
+
+sample_row_server <- function(input, output, session, ms_samples, sample_label, db) {
         ns <- session$ns
 
-        fields <- c("strain", "plasmid", "pos", "group_id")
+        fields <- c("strain", "plasmid", "pos", "group_id", "tags")
+        output$tags_widget <- renderUI({
+            selectizeInput(inputId = ns("tags"),
+                           label = "Tags",
+                           choices = tags_retrieve(db),
+                           multiple = TRUE,
+                           options = list(create = 'true')
+            )
+        })
 
         walk(
                 fields,
                 ~ update_from_input(., ms_samples, input, sample_label)
         )
 
+        # updateSelectizeInput(session,
+        #                      inputId = "tags",
+        #                      # choices = tags_retrieve(db),
+        #                      choices = LETTERS,
+        #                      options = list(
+        #                              create = 'true'
+        #                      ),
+        #                      server = TRUE
+        # )
+#
+        observeEvent(input$tags,{
+
+            validate(need(!is.null(input$tags), message = FALSE))
+
+            tags <- input$tags %>%
+                map_chr(~ str_interp('"${.}"'))
+
+            tags <- str_interp('${str_c(tags, collapse = ", ")}')
+
+            tags_add(db = db, tags = tags)
+        })
+
+        # update_samples_tbl_from_input(sample_tags, "tags", ms_samples, sample_label)
 
         #Delete a part's UI and parts() row
         observeEvent(input$delete_sample, {
@@ -125,6 +184,26 @@ sample_row_server <- function(input, output, session, ms_samples, sample_label) 
                                         filter(label != sample_label))
                 )
         })
+}
+
+add_sample <- function(session, label, dics, available_positions, ms_samples, db, ...) {
+
+    ns <- session$ns
+    insertUI(selector = paste0("#",ns("add_sample")),
+             where = "beforeBegin",
+             ui = sample_row_ui(ns(paste0("sample_", label)),
+                                dics$strains,
+                                dics$plasmids,
+                                available_positions,
+                                ...)
+    )
+
+    callModule(session = session,
+               module = sample_row_server,
+               id = paste0("sample_", label),
+               ms_samples = ms_samples,
+               sample_label = label,
+               db = db)
 }
 
 generate_sample_list_csv <- function(samples_tbl) {
@@ -153,7 +232,8 @@ generate_sample_list_csv <- function(samples_tbl) {
                        SAMPLE_LOCATION = paste0("2:", split_pos_column_row(pos)),
                        TYPE = "ANALYTE",
                        CONC_A = "",
-                       SPARE_1 = if_else(is.na(group_id), "", group_id)
+                       SPARE_1 = if_else(is.na(group_id), "", group_id),
+                       FILE_TEXT = tags
                 ) %>%
                 select(-(label:pos))
 
@@ -165,7 +245,8 @@ generate_sample_list_csv <- function(samples_tbl) {
                       SAMPLE_LOCATION = paste0("1:", split_pos_column_row(.y)),
                       TYPE = if (str_detect(.x, "blank")) "BLANK" else "STANDARD",
                       CONC_A = str_extract(.x, "(?<=_)\\d+"),
-                      SPARE_1 = ""
+                      SPARE_1 = "",
+                      FILE_TEXT = ""
                       )
        ) %>%
                bind_rows(analytes) %>%
@@ -190,9 +271,11 @@ generate_sample_list_csv <- function(samples_tbl) {
                        TYPE,
                        CONC_A,
                        MS_TUNE_FILE,
-                       SPARE_1
+                       SPARE_1,
+                       FILE_TEXT
                )
 }
+
 
 check_ongoing_edit <- function(folder_url, user, ms_edit) {
 
@@ -220,46 +303,6 @@ check_ongoing_edit <- function(folder_url, user, ms_edit) {
         }
 }
 
-# check_ongoing_edit <- function(folder_url, user) {
-#
-#         file <- folder_url %>%
-#                 as_id() %>%
-#                 drive_ls(pattern = user)
-#         browser()
-#
-#         if (nrow(file) == 0) list(is_ongoing = FALSE)
-#         else {
-#                 if (nrow(file) > 1) file[-1, ] %>%
-#                         by_row(..f = ~ drive_trash(.x))
-#
-#                 path <- paste0("temp/", file[1,]$name)
-#                 drive_download(file[1,], path, overwrite = TRUE)
-#                 list(is_ongoing = TRUE,
-#                      data = read_csv(path),
-#                      is_48 = str_detect(file[1,]$name, "is_48"),
-#                      #captures in file name the experiment name after 'exp_' and before the next underscore
-#                      experiment = str_extract(file[1,]$name, "(?<=exp_)[A-z]*?(?=_)"),
-#                      file_note = str_extract(file[1,]$name, "(?<=_note_).*(?=\\.)"),
-#                      drbl = file[1,])
-#                 }
-# }
-
-add_sample <- function(ns, label, dics, available_positions, ms_samples, ...) {
-
-        insertUI(selector = paste0("#",ns("add_sample")),
-                 where = "beforeBegin",
-                 ui = sample_row_ui(ns(paste0("sample_", label)),
-                                    dics$strains,
-                                    dics$plasmids,
-                                    available_positions,
-                                    ...)
-        )
-
-        callModule(module = sample_row_server,
-                   id = paste0("sample_", label),
-                   ms_samples = ms_samples,
-                   sample_label = label)
-}
 
 save_ms_edit_as_csv_on_drive <- function(drive_url,
                                          csv_name,
