@@ -71,7 +71,7 @@ obtain_file_data <- function(go_button,
 }
 
 if_exists_than_that <- function(x, if_not = NULL) {
-        if (is.null(x) || is.na(x) || x == "") {
+        if (length(x) == 0 || is.null(x) || is.na(x) || x == "" ) {
                 if_not
         } else {
                 x

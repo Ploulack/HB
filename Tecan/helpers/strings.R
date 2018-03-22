@@ -1,29 +1,12 @@
-first_unused <- function(used_labels = NULL) {
-        if (is.null(used_labels)) return("A")
-        quotient <- length(used_labels) %/% 26
-        rest <- length(used_labels) %% 26
+first_unused <- function(used_labels = NULL, n = 1) {
+    if (length(used_labels) > 26^2) stop("Can't handle that many labels.")
+    LETTERS_2 <- map(LETTERS, function(x) map_chr(LETTERS, ~paste0(x, .x))) %>%
+        unlist() %>%
+        append(x = LETTERS)
 
-        if (rest == 0) {
-                res <- NULL
-                for (i in 1:(quotient + 1)) {
-                        res <- paste0(res,"A")
-                }
-                res}
-        else {
-                for (i in 0:quotient) {
-                        index <- used_labels %>% str_length() == i + 1
-                        if (sum(index) != 26)
-                        {
-                                l <- used_labels[index] %>%
-                                        str_sub(start = i + 1, end = i + 1)
-                                return(LETTERS[which.min(LETTERS %in% l)])
-                        }
-                }
-                l <- used_labels %>%
-                        str_sub(start = quotient + 1, end = quotient + 1) %>%
-                        str_subset("[A-Z]")
-                LETTERS[which.min(LETTERS %in% l)]
-        }
+    idx <- !LETTERS_2 %in% used_labels
+
+    LETTERS_2[idx][1:n]
 }
 
 gsheet_colID_from_tibble <- function(tbl, tbl_col) {

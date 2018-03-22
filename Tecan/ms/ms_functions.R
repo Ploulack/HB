@@ -1,54 +1,66 @@
 
 new_ms_modal <- function(ns, experiment_names, ms_edit= NULL, required_msg = NULL) {
 
-        showModal(
-                modalDialog(title = "Specify MS plate",
-                            fluidPage(
-                                    selectInput(inputId = ns("new_ms_experiment"),
-                                                label = "Select Experiment for your plate",
-                                                choices = experiment_names %>% prepend(""),
-                                                selected = if_exists_than_that(ms_edit$experiment)
-                                                ),
-                                    conditionalPanel(condition = paste0("input['", ns("new_ms_experiment"),"'] == 'Unitary'"),
-                                                     new_ms_unitary(ns, ms_edit)
-                                    )
+    showModal(
+        modalDialog(title = "Specify MS plate",
+                    fluidPage(
+                        selectInput(inputId = ns("new_ms_experiment"),
+                                    label = "Select Experiment for your plate",
+                                    choices = experiment_names %>% prepend(""),
+                                    selected = if_exists_than_that(ms_edit$experiment)
+                        ),
+                        conditionalPanel(condition = paste0("input['", ns("new_ms_experiment"),"'] == 'Unitary'"),
+                                         new_ms_unitary(ns, ms_edit)
+                        )
 
-                            ),
-                            if (!is.null(required_msg))
-                                    div(tags$b(required_msg, style = "color: red;")),
-                            footer = tagList(
-                                    actionButton(inputId = ns("new_ms_ok"),
-                                                 label = "Generate Sample List CSV"),
-                                    actionButton(inputId = ns("new_ms_cancel"),
-                                                 label = "Cancel")
-                            ),
-                            size = "l",
-                            easyClose = FALSE
-                )
+                    ),
+                    if (!is.null(required_msg))
+                        div(tags$b(required_msg, style = "color: red;")),
+                    footer = tagList(
+                        actionButton(inputId = ns("new_ms_ok"),
+                                     label = "Generate Sample List CSV"),
+                        actionButton(inputId = ns("new_ms_cancel"),
+                                     label = "Cancel")
+                    ),
+                    size = "l",
+                    easyClose = FALSE
         )
+    )
 }
 
 new_ms_unitary <- function(ns, ms_edit = NULL) {
-        tagList(
-                fluidRow(
-                        column(3,
-                               checkboxInput(ns("is_48_wells_plate"),
-                                             "48 wells plate?",
-                                             value = if_exists_than_that(ms_edit$is_48, FALSE))
-                        ),
-                        column(3,
-                               textInput(inputId = ns("csv_note"),
-                                         label = "file name note",
-                                         placeholder = "ex: CBG_production",
-                                         value = if_exists_than_that(ms_edit$file_note, "")
-                                        )
-                        )
-                ),
-                actionButton(ns("add_sample"), label = "Add Sample"),
-                conditionalPanel(condition = paste0("output['", ns("has_elements"), "'] == true"),
-                                 actionButton(inputId = ns("create_files"),
-                                              label = "Generate"))
+    tagList(
+        fluidRow(
+            column(3,
+                   conditionalPanel(condition = paste0("input['", ns("add_sample"), "'] == 0"),
+                                    checkboxInput(ns("is_48_wells_plate"),
+                                                  "48 wells plate?",
+                                                  value = if_exists_than_that(ms_edit$is_48, FALSE))
+                   )
+            ),
+            column(3,
+                   textInput(inputId = ns("csv_note"),
+                             label = "file name note",
+                             placeholder = "ex: CBG_production",
+                             value = if_exists_than_that(ms_edit$file_note, "")
+                   )
+            )
+        ),
+        tags$hr(id = ns("sample_bar")),
+        fluidRow(
+            column(2,
+                   actionButton(ns("add_sample"), label = "Add Sample")
+            ),
+            column(2,
+                   numericInput(inputId = ns("n_copy"),
+                                label = "Nb of Copies", value = 1, min = 1, max = 20, step = 1)
+            ),
+            column(2,
+                   actionButton(ns("copy"),
+                                paste0("Duplicate N times"))
+            )
         )
+    )
 }
 
 sample_row_ui <- function(id, strains, plasmids, positions,
@@ -86,9 +98,6 @@ sample_row_ui <- function(id, strains, plasmids, positions,
                                 actionButton(inputId = ns("delete_sample"),
                                              label = "Delete")
                          )
-                 ),
-                 fluidRow(
-                         tags$hr()
                  )
         )
 }
@@ -117,23 +126,8 @@ update_from_input <- function(var_name, ms_samples, input, sample_label) {
         })
 }
 
-# update_samples_tbl_from_input <- function(input_reactive, var_name, ms_samples, sample_label) {
-#         force(var_name)
-#         browser()
-#         row <- reactive({
-#                 which(ms_samples()$label == sample_label)
-#         })
-#
-#         observeEvent(input_reactive(), {
-#                 samples <- ms_samples()
-#                 samples[[var_name]][row()] <- ifelse(input_reactive() == "NA", NA, input_reactive())
-#                 ms_samples(samples)
-#                 print(ms_samples())
-#         })
-# }
 
-
-sample_row_server <- function(input, output, session, ms_samples, sample_label, db) {
+sample_row_server <- function(input, output, session, ms_samples, sample_label, db, tags) {
         ns <- session$ns
 
         fields <- c("strain", "plasmid", "pos", "group_id", "tags")
@@ -142,6 +136,7 @@ sample_row_server <- function(input, output, session, ms_samples, sample_label, 
                            label = "Tags",
                            choices = tags_retrieve(db),
                            multiple = TRUE,
+                           selected = if_exists_than_that(tags),
                            options = list(create = 'true')
             )
         })
@@ -151,18 +146,7 @@ sample_row_server <- function(input, output, session, ms_samples, sample_label, 
                 ~ update_from_input(., ms_samples, input, sample_label)
         )
 
-        # updateSelectizeInput(session,
-        #                      inputId = "tags",
-        #                      # choices = tags_retrieve(db),
-        #                      choices = LETTERS,
-        #                      options = list(
-        #                              create = 'true'
-        #                      ),
-        #                      server = TRUE
-        # )
-#
         observeEvent(input$tags,{
-
             validate(need(!is.null(input$tags), message = FALSE))
 
             tags <- input$tags %>%
@@ -172,8 +156,6 @@ sample_row_server <- function(input, output, session, ms_samples, sample_label, 
 
             tags_add(db = db, tags = tags)
         })
-
-        # update_samples_tbl_from_input(sample_tags, "tags", ms_samples, sample_label)
 
         #Delete a part's UI and parts() row
         observeEvent(input$delete_sample, {
@@ -186,10 +168,10 @@ sample_row_server <- function(input, output, session, ms_samples, sample_label, 
         })
 }
 
-add_sample <- function(session, label, dics, available_positions, ms_samples, db, ...) {
+insert_sample <- function(session, label, dics, available_positions, ms_samples, db, tags = NULL, ...) {
 
     ns <- session$ns
-    insertUI(selector = paste0("#",ns("add_sample")),
+    insertUI(selector = paste0("#",ns("sample_bar")),
              where = "beforeBegin",
              ui = sample_row_ui(ns(paste0("sample_", label)),
                                 dics$strains,
@@ -203,7 +185,42 @@ add_sample <- function(session, label, dics, available_positions, ms_samples, db
                id = paste0("sample_", label),
                ms_samples = ms_samples,
                sample_label = label,
-               db = db)
+               db = db,
+               tags = tags
+               )
+}
+
+add_sample <- function(session, ms_samples, dics, available_pos, db_tags,n = 1, ref_sample = NULL) {
+    force(ref_sample)
+
+    labels <- first_unused(ms_samples()$label, n)
+
+    positions <- available_pos() %>%
+        keep(~!(. %in% ms_samples()$pos))
+
+    for (i in 1:n) {
+        label <- labels[i]
+        # Add new row for the new letter
+        ms_samples(
+            ms_samples() %>%
+                add_row(label = label)
+        )
+
+        insert_sample(session,
+                      label = label,
+                      dics = dics,
+                      available_positions = available_pos(),
+                      ms_samples = ms_samples,
+                      db = db_tags,
+                      pos = positions[i],
+                      strain = if_exists_than_that(ref_sample$strain),
+                      plasmid = if_exists_than_that(ref_sample$plasmid),
+                      group_id = if_exists_than_that(ref_sample$group_id),
+                      tags = if_exists_than_that(ref_sample$tags) %>%
+                          str_split(pattern = ", ") %>%
+                          unlist()
+        )
+    }
 }
 
 generate_sample_list_csv <- function(samples_tbl) {
@@ -330,3 +347,5 @@ split_pos_column_row <- function(pos) {
                 str_sub(pos, end = 1), ",", str_sub(pos, start = 2)
                )
 }
+
+
