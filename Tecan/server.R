@@ -47,7 +47,7 @@ function(input, output, session) {
         # MS
         observeEvent(input$ms_go, {
                 shiny::validate(need((input$ms_go > 0), message = FALSE))
-                source("ms/ms_server.R")
+                source("ms/MS_server.R")
                 callModule(ms_server, "ms")
         })
 
@@ -63,9 +63,9 @@ function(input, output, session) {
                         if (file.exists("hblab_token.rds")) {file.remove("hblab_token.rds")}
                         file.remove(list.files("temp", full.names = TRUE))
 
-                        if (exists("db")) {
-                                rm(db)
-                        }
+                        # if (exists("db")) {
+                        #         rm(db)
+                        # }
                 }
         )
 }
