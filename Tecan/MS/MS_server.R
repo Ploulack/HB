@@ -52,6 +52,7 @@ ms_server <- function(input, output, session) {
             label = character(),
             strain = character(),
             plasmid = character(),
+            identifier = character(),
             group_id = character(),
             pos = character(),
             tags = character()
@@ -103,6 +104,7 @@ ms_server <- function(input, output, session) {
                                              db = db_tags,
                                              strain = .x$strain,
                                              plasmid = .x$plasmid,
+                                             identifier = .x$identifier,
                                              group_id = .x$group_id,
                                              pos = .x$pos,
                                              tags = if_exists_than_that(.x$tags) %>% str_split(pattern = ", ") %>% unlist()
@@ -161,7 +163,7 @@ ms_server <- function(input, output, session) {
 
         file_name <- paste("temp/", input$csv_note, user, "UNITARY", date, ".csv", sep = "_")
 
-        generate_sample_list_csv(ms_samples()) %>%
+        generate_sample_list_csv(ms_samples(), input, user) %>%
             write.csv(file = file_name,
                       quote = TRUE,
                       eol = "\r\n",
@@ -184,7 +186,7 @@ ms_server <- function(input, output, session) {
     })
 
     observeEvent(input$new_ms_cancel, {
-        browser()
+
         ms_samples(
             ms_samples() %>%
                 slice(0)
@@ -195,11 +197,16 @@ ms_server <- function(input, output, session) {
 
     #### DB STORAGE ####
     ms_db <- db_from_environment(session, collection = "ms")
+    file_record <- reactiveVal()
 
-    file_record <- eventReactive(ms$go_file(), {
+    observeEvent(ms$go_file(), {
+        browser()
         record <- mongo_file_entry(ms_db, ms$id(), tab_name)
 
         if (!record$entry_exists) {
+            date <- Sys.time() %>%
+                force_tz(tzone = "America/Montreal")
+
             ms_dat_json <- jsonlite::toJSON(x = ms$tbl(),
                                             dataframe = "rows",
                                             POSIXt = "mongo",
@@ -208,13 +215,13 @@ ms_server <- function(input, output, session) {
             query <- str_interp('{
                                             "_id" : "${ms$id()}",
                                             "name": "${ms$file_dribble()$name}",
+                                            "date_created" : "${date}",
                                             "data": ${ms_dat_json}}'
             )
 
             insert_log <- ms_db$insert(query)
-            cat("insert log : ", insert_log)
         }
-        return(record)
+        file_record(record)
     })
 
 
