@@ -5,6 +5,7 @@ ms_server <- function(input, output, session) {
     source("ms/ms_extract.R"); source("ms/ms_functions.R")
     source("registry/registry_helpers.R"); source("helpers/strings.R")
     source("helpers/plates_helpers.R"); source("mongo/tags.R")
+    source("ms/ms_csv.R")
 
     options(shiny.trace = FALSE)
     user <- drive_user()$displayName
@@ -46,6 +47,7 @@ ms_server <- function(input, output, session) {
 
 
     #### GENERATE MS RUN ####
+
     dics <- reactiveValues()
     ms_samples <- reactiveVal(
         tibble(
@@ -55,9 +57,15 @@ ms_server <- function(input, output, session) {
             identifier = character(),
             group_id = character(),
             pos = character(),
-            tags = character()
+            tags = character(),
+            plate = character(),
+            csv_note = character(),
+            url = character()
         )
     )
+
+    tab_plates <- reactiveVal("")
+
     ms_edit <- reactiveValues(
         is_ongoing = FALSE
     )
@@ -67,6 +75,11 @@ ms_server <- function(input, output, session) {
     if (!exists("registry")) {
         registry <- NULL
     }
+
+#Debug
+observeEvent(ms_samples(), {
+    print(ms_samples())
+})
 
     observeEvent(input$create_ms, {
 
@@ -102,6 +115,7 @@ ms_server <- function(input, output, session) {
                                              available_positions = if (ms_edit$is_48) generate_48_pos() else generate_96_pos(),
                                              ms_samples,
                                              db = db_tags,
+                                             current_tab = input$new_ms_tabs, #This won't work, will have to find a way...
                                              strain = .x$strain,
                                              plasmid = .x$plasmid,
                                              identifier = .x$identifier,
@@ -111,13 +125,50 @@ ms_server <- function(input, output, session) {
                 )
                 )
         } else {
-            new_ms_modal(ns, ms$protocols()$name)
+            new_ms_modal(ns = ns, experiment_names = ms$protocols()$name)
         }
 
     })
 
+    observeEvent(input$new_ms_plate, {
+
+        plates <- paste0("Plate_", 1:8)
+        new_plate <- plates[!plates %in% tab_plates()][1]
+        tab_plates(append(tab_plates(), new_plate))
+
+        appendTab(inputId = "new_ms_tabs",
+                  tab = new_ms_tab(ns,
+                                   title = new_plate,
+                                   experiment_names = ms$protocols()$name,
+                                   ms_edit = NULL,
+                                   required_msg = NULL),
+                  select = TRUE)
+
+        observeEvent(input[[paste0(new_plate, "_add_sample")]], {
+
+            # if (ms_samples() %>% nrow() > 0) {
+            #     ms_edit <- save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
+            #                                             csv_name = csv_name(),
+            #                                             samples = ms_samples(),
+            #                                             ms_edit = ms_edit)
+            # }
+
+            add_sample(session, input, ms_samples, dics, available_pos, db_tags, current_tab = new_plate)
+        })
+
+        walk(c("csv_note", "url"),
+             ~ update_tbl_from_plate_info(var_name = .,
+                                   plate_name = new_plate,
+                                   ms_samples = ms_samples,
+                                   input = input
+                                   )
+        )
+
+    })
+
+
     available_pos <- reactive({
-        if (input$is_48_wells_plate) {
+        if (input[[paste0(input$new_ms_tabs, "_", "is_48_wells_plate")]]) {
             generate_48_pos()
         } else {
             generate_96_pos()
@@ -130,17 +181,6 @@ ms_server <- function(input, output, session) {
         csv_name <- str_interp("exp_${experiment}_${is_48_str}_${user}_note_${input$csv_note}.csv")
     })
 
-    observeEvent(input$add_sample, {
-
-        if (ms_samples() %>% nrow() > 0) {
-            ms_edit <- save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
-                                                    csv_name = csv_name(),
-                                                    samples = ms_samples(),
-                                                    ms_edit = ms_edit)
-        }
-
-        add_sample(session, ms_samples, dics, available_pos, db_tags)
-    })
 
     observeEvent(input$copy, {
 
@@ -151,7 +191,7 @@ ms_server <- function(input, output, session) {
                                                     ms_edit = ms_edit)
         }
 
-        add_sample(session, ms_samples, dics, available_pos, db_tags,
+        add_sample(session, input, ms_samples, dics, available_pos, db_tags,
                    n = input$n_copy,
                    ref_sample = ms_samples() %>% slice(n()))
     })
@@ -160,8 +200,8 @@ ms_server <- function(input, output, session) {
 
         date <- Sys.time() %>%
             force_tz(tzone = "America/Montreal")
-
-        file_name <- paste("temp/", input$csv_note, user, "UNITARY", date, ".csv", sep = "_")
+        browser()
+        file_name <- paste("temp/", input$file_note, user, "UNITARY", date, ".csv", sep = "_")
 
         generate_sample_list_csv(ms_samples(), input, user) %>%
             write.csv(file = file_name,
