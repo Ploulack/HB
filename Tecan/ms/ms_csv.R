@@ -39,8 +39,8 @@ generate_sample_list_csv <- function(samples_tbl, input, user) {
             SAMPLE_LOCATION = format_plate_pos(plate, pos),
             TYPE = "ANALYTE",
             CONC_A = "",
-            SPARE_1 = if_else(is.na(group_id), "", group_id),
-            SPARE_2 = csv_note,
+            SPARE_1 = group_id,
+            SPARE_2 = plate_note,
             SPARE_5 = url,
             FILE_TEXT = tags
         ) %>%
@@ -68,7 +68,7 @@ generate_sample_list_csv <- function(samples_tbl, input, user) {
             MS_TUNE_FILE = paste0("C:\\MassLynx\\IntelliStart\\Results\\Unit Mass Resolution\\",
                                   cal_file_name),
             SPARE_3 = user,
-            SPARE_4 = Sys.time() %>% force_tz("America/Montreal")
+            SPARE_4 = Sys.time() %>% force_tz("America/Montreal") %>% as.character()
         ) %>%
         mutate(Index = row_number()) %>%
         select(
@@ -109,7 +109,6 @@ check_ongoing_edit <- function(folder_url, user, ms_edit) {
 
         ms_edit$is_ongoing <- TRUE
         ms_edit$data  <- read_csv(path)
-        ms_edit$is_48  <- str_detect(file[1,]$name, "is_48")
         #captures in file name the experiment name after 'exp_' and before the next underscore
         ms_edit$experiment <- str_extract(file[1,]$name, "(?<=exp_)[A-z]*?(?=_)")
         ms_edit$file_note <- str_extract(file[1,]$name, "(?<=_note_).*(?=\\.)")

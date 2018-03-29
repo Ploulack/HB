@@ -47,7 +47,8 @@ ms_server <- function(input, output, session) {
 
 
     #### GENERATE MS RUN ####
-
+    pos_96 <- generate_96_pos()
+    pos_48 <- generate_48_pos()
     dics <- reactiveValues()
     ms_samples <- reactiveVal(
         tibble(
@@ -59,8 +60,9 @@ ms_server <- function(input, output, session) {
             pos = character(),
             tags = character(),
             plate = character(),
-            csv_note = character(),
-            url = character()
+            plate_note = character(),
+            url = character(),
+            is_48 = logical()
         )
     )
 
@@ -101,84 +103,97 @@ observeEvent(ms_samples(), {
         check_ongoing_edit(get_drive_url(session,"ms_ongoing_edit"), user, ms_edit)
 
         if (ms_edit$is_ongoing) {
-            new_ms_modal(ns, ms$protocols()$name, ms_edit)
+            new_ms_modal(ns, ms$protocols()$name, ms_edit$experiment)
             ms_samples(ms_edit$data %>%
                            arrange(str_extract(pos, "[A-Z]"),
                                    str_extract(pos, "\\d+")
                            )
             )
 
+            #Open the tabs
+            plates_info <- ms_edit$data %>%
+                group_by(plate) %>%
+                summarise(
+                    is_48 = unique(is_48),
+                    url = unique(url),
+                    plate_note = unique(plate_note)
+                )
+
+            plates_info %>%
+                by_row(..f = ~
+                {
+                    #Add each tab's UI
+                    appendTab(inputId = "new_ms_tabs",
+                              tab = new_ms_tab(ns = ns,
+                                               current_tab = .$plate,
+                                               is_48 = .$is_48,
+                                               plate_note = .$plate_note,
+                                               url = .$url),
+                              select = TRUE
+                    )
+                    tab_plates(append(tab_plates(), .$plate))
+
+                    # Start the observers related to each plate
+                    start_plate_observers(session = session, input = input,
+                                          ms_samples = ms_samples, plate = .$plate,
+                                          ms_edit = ms_edit, dics = dics, db_tags = db_tags, csv_name = csv_name())
+                }
+                )
+
+            # Fill the samples
             ms_samples()  %>%
-                by_row(..f = ~ insert_sample(session =session,
+                by_row(..f = ~ insert_sample(session = session,
                                              label = .x$label,
                                              dics = dics,
-                                             available_positions = if (ms_edit$is_48) generate_48_pos() else generate_96_pos(),
+                                             available_positions = if (.x$is_48) pos_48 else pos_96,
                                              ms_samples,
                                              db = db_tags,
-                                             current_tab = input$new_ms_tabs, #This won't work, will have to find a way...
-                                             strain = .x$strain,
-                                             plasmid = .x$plasmid,
-                                             identifier = .x$identifier,
-                                             group_id = .x$group_id,
-                                             pos = .x$pos,
-                                             tags = if_exists_than_that(.x$tags) %>% str_split(pattern = ", ") %>% unlist()
+                                             sample = .x
                 )
                 )
         } else {
             new_ms_modal(ns = ns, experiment_names = ms$protocols()$name)
         }
-
     })
 
     observeEvent(input$new_ms_plate, {
 
-        plates <- paste0("Plate_", 1:8)
+        plates <- paste0("Plate_", 2:8)
         new_plate <- plates[!plates %in% tab_plates()][1]
-        tab_plates(append(tab_plates(), new_plate))
 
-        appendTab(inputId = "new_ms_tabs",
-                  tab = new_ms_tab(ns,
-                                   title = new_plate,
-                                   experiment_names = ms$protocols()$name,
-                                   ms_edit = NULL,
-                                   required_msg = NULL),
-                  select = TRUE)
+        add_plate(ns, session, input, tab_plates, new_plate, ms_samples, ms_edit, dics, db_tags, csv_name())
 
-        observeEvent(input[[paste0(new_plate, "_add_sample")]], {
-
-            # if (ms_samples() %>% nrow() > 0) {
-            #     ms_edit <- save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
-            #                                             csv_name = csv_name(),
-            #                                             samples = ms_samples(),
-            #                                             ms_edit = ms_edit)
-            # }
-
-            add_sample(session, input, ms_samples, dics, available_pos, db_tags, current_tab = new_plate)
-        })
-
-        walk(c("csv_note", "url"),
-             ~ update_tbl_from_plate_info(var_name = .,
-                                   plate_name = new_plate,
-                                   ms_samples = ms_samples,
-                                   input = input
-                                   )
-        )
-
+        # tab_plates(append(tab_plates(), new_plate))
+        #
+        # appendTab(inputId = "new_ms_tabs",
+        #           tab = new_ms_tab(ns,
+        #                            current_tab = new_plate,
+        #                            required_msg = NULL),
+        #           select = TRUE)
+        #
+        # start_plate_observers(session = session, input = input,
+        #                       ms_samples = ms_samples, plate = new_plate,
+        #                       ms_edit = ms_edit, dics = dics, db_tags = db_tags, csv_name = csv_name())
     })
 
+    observeEvent(input$use_plate_1, {
+        add_plate(ns = ns, session = session, input = input, tab_plates = tab_plates, new_plate = "Plate_1", ms_samples = ms_samples, ms_edit = ms_edit, dics = dics, db_tags = db_tags, csv_name = csv_name())
+    })
 
     available_pos <- reactive({
-        if (input[[paste0(input$new_ms_tabs, "_", "is_48_wells_plate")]]) {
-            generate_48_pos()
-        } else {
-            generate_96_pos()
+        if (input$new_ms_tabs == "Plate_1") {
+            return(pos_48[-6])
         }
+
+        if (input[[paste0(input$new_ms_tabs, "_", "is_48")]])
+            pos_48
+        else
+            pos_96
     })
 
     csv_name <- reactive({
-        is_48_str <- if (input$is_48_wells_plate) "is_48" else "is_96"
         experiment <- input$new_ms_experiment
-        csv_name <- str_interp("exp_${experiment}_${is_48_str}_${user}_note_${input$csv_note}.csv")
+        csv_name <- str_interp("exp_${experiment}_${user}_note_${input$file_note}.csv")
     })
 
 
@@ -191,7 +206,7 @@ observeEvent(ms_samples(), {
                                                     ms_edit = ms_edit)
         }
 
-        add_sample(session, input, ms_samples, dics, available_pos, db_tags,
+        add_sample(session, input, ms_samples, dics, available_pos(), db_tags, input$new_ms_tabs,
                    n = input$n_copy,
                    ref_sample = ms_samples() %>% slice(n()))
     })
@@ -200,14 +215,15 @@ observeEvent(ms_samples(), {
 
         date <- Sys.time() %>%
             force_tz(tzone = "America/Montreal")
-        browser()
+
         file_name <- paste("temp/", input$file_note, user, "UNITARY", date, ".csv", sep = "_")
 
         generate_sample_list_csv(ms_samples(), input, user) %>%
             write.csv(file = file_name,
                       quote = TRUE,
                       eol = "\r\n",
-                      row.names = FALSE)
+                      row.names = FALSE,
+                      na = "")
 
         upload_drbl <- drive_upload(media = file_name,
                                     path = ms$protocols() %>%
@@ -217,22 +233,12 @@ observeEvent(ms_samples(), {
         )
         if (is_dribble(upload_drbl)) {
             drive_trash(ms_edit$drbl)
-            ms_samples(
-                ms_samples() %>%
-                    slice(0)
-            )
-            removeModal()
+            reset_ms_edit(ms_samples, tab_plates)
         }
     })
 
     observeEvent(input$new_ms_cancel, {
-
-        ms_samples(
-            ms_samples() %>%
-                slice(0)
-        )
-        removeModal()
-
+        reset_ms_edit(ms_samples, tab_plates)
     })
 
     #### DB STORAGE ####
@@ -397,7 +403,7 @@ observeEvent(ms_samples(), {
         }
     })
 
-    output$file_title <- renderText({
+    file_title <- renderText({
         validate(
             need(ms$tbl(), message = "no ms data")
         )
