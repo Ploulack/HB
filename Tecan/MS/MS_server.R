@@ -242,11 +242,12 @@ observeEvent(ms_samples(), {
     })
 
     #### DB STORAGE ####
+
     ms_db <- db_from_environment(session, collection = "ms")
     file_record <- reactiveVal()
 
     observeEvent(ms$go_file(), {
-        browser()
+
         record <- mongo_file_entry(ms_db, ms$id(), tab_name)
 
         if (!record$entry_exists) {
@@ -265,13 +266,13 @@ observeEvent(ms_samples(), {
                                             "data": ${ms_dat_json}}'
             )
 
-            insert_log <- ms_db$insert(query)
+            insert_log <- ms_db$insert(data = query)
         }
         file_record(record)
     })
 
 
-    #### GRAPHIC LAYOUT TESTS FOR MS DATA DIPLAY ####
+    #### MS DATA DIPLAY ####
 
     observeEvent(ms$go_file(), {
         #Reset stored choices
@@ -411,6 +412,7 @@ observeEvent(ms_samples(), {
         molecules <- ms$tbl()$Molecule %>%
             unique() %>%
             str_c(collapse = " ")
+
         date_range <- min(ms$tbl()$Time,na.rm = TRUE) %>%
             paste(
                 max(ms$tbl()$Time,na.rm = TRUE) %>%
@@ -419,6 +421,8 @@ observeEvent(ms_samples(), {
 
         paste0(molecules, " ~ ", date_range)
     })
+
+
 
     barplot_scale <- reactive({
         ifelse(input$log_scale, "log1p", "identity")

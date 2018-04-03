@@ -23,7 +23,6 @@ new_ms_modal <- function(ns, experiment_names, experiment = NULL, required_msg =
                                              "Use Plate 1"),
                                 actionButton(inputId = ns("new_ms_ok"),
                                              label = "Generate Sample List CSV")
-
                             )
                         ),
                         actionButton(inputId = ns("new_ms_cancel"),

@@ -6,6 +6,7 @@ source("tecan/tecan_values.R")
 source("protocols/protocols_values.R")
 source("protocols/pooling.R")
 source("helpers/plates_helpers.R")
+source("ms/ms_extract.R")
 
 #Get tecan protocols names
 dna_tecan <- tecan_protocols %>%
@@ -40,6 +41,9 @@ tecan_error_examples <- list(
                            error = "Premature end of data in tag Version line 68")
 )
 
-# ms_examples <- list(
-#         ""
-# )
+ms_examples <- list(
+    "multi_plate" = list(xml = read_xml("tests/testthat/ms_xml_files/quandata_UNITARY_2018_03_29_acc1m_HB188.xml"),
+                         desc = "multiplate MS run"
+    )
+) %>%
+    map(~list_modify(.x, data = extract_ms_data(.x$xml)))

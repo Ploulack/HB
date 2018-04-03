@@ -39,9 +39,9 @@ generate_sample_list_csv <- function(samples_tbl, input, user) {
             SAMPLE_LOCATION = format_plate_pos(plate, pos),
             TYPE = "ANALYTE",
             CONC_A = "",
-            SPARE_1 = group_id,
-            SPARE_2 = plate_note,
-            SPARE_5 = url,
+            TASK = group_id,
+            LAB = plate_note,
+            SUBMITTER = url,
             FILE_TEXT = tags
         ) %>%
         select(-(label:pos))
@@ -67,8 +67,8 @@ generate_sample_list_csv <- function(samples_tbl, input, user) {
             INJ_VOL = 3 %>% as.integer(),
             MS_TUNE_FILE = paste0("C:\\MassLynx\\IntelliStart\\Results\\Unit Mass Resolution\\",
                                   cal_file_name),
-            SPARE_3 = user,
-            SPARE_4 = Sys.time() %>% force_tz("America/Montreal") %>% as.character()
+            USER = user,
+            CONDITIONS = Sys.time() %>% force_tz("America/Montreal") %>% as.character()
         ) %>%
         mutate(Index = row_number()) %>%
         select(
@@ -82,11 +82,11 @@ generate_sample_list_csv <- function(samples_tbl, input, user) {
             TYPE,
             CONC_A,
             MS_TUNE_FILE,
-            SPARE_1,
-            SPARE_2,
-            SPARE_3,
-            SPARE_4,
-            SPARE_5,
+            TASK,
+            LAB,
+            USER,
+            CONDITIONS,
+            SUBMITTER,
             FILE_TEXT
         )
 }
