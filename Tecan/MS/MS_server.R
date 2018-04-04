@@ -170,37 +170,10 @@ ms_server <- function(input, output, session) {
                   dics = dics, db_tags = db_tags, csv_name = csv_name)
     })
 
-    available_pos <- reactive({
-
-        if (input$new_ms_tabs == "Plate_1") {
-            return(pos_48[-(1:6)])
-        }
-
-        if (input[[paste0(input$new_ms_tabs, "_", "is_48")]])
-            pos_48
-        else
-            pos_96
-    })
-
     csv_name <- reactive({
         experiment <- input$new_ms_experiment
         csv_name <- str_interp("exp_${experiment}_${user}_note_${input$file_note}.csv")
     })
-
-
-    # observeEvent(input$copy, {
-    #
-    #     if (ms_samples() %>% nrow() > 0) {
-    #         ms_edit <- save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
-    #                                                 csv_name = csv_name(),
-    #                                                 samples = ms_samples(),
-    #                                                 ms_edit = ms_edit)
-    #     }
-    #     browser()
-    #     add_sample(session, input, ms_samples, dics, available_pos(), db_tags, input$new_ms_tabs,
-    #                n = input$n_copy,
-    #                ref_sample = ms_samples() %>% slice(n()))
-    # })
 
     observeEvent(input$new_ms_ok, {
 
@@ -265,6 +238,10 @@ ms_server <- function(input, output, session) {
 
     #### MS DATA DIPLAY ####
 
+    stored_choices <- reactiveVal(NULL)
+    display_tbl <- reactiveVal()
+    last_click <- reactiveVal(NULL)
+
     observeEvent(ms$go_file(), {
         #Reset stored choices
         stored_choices(NULL)
@@ -285,15 +262,16 @@ ms_server <- function(input, output, session) {
 
     })
 
-    stored_choices <- reactiveVal(NULL)
 
     observeEvent(input$select_all, {
 
         if (input$select_all) {
             stored_choices(input$samples)
 
+
             non_0_conc_choices <- ms$tbl() %>%
-                filter(Concentration > 0) %>%
+                filter(Molecule %in% input$molecules,
+                       Concentration > 0) %>%
                 pull(Name) %>%
                 unique()
 
@@ -307,8 +285,6 @@ ms_server <- function(input, output, session) {
                                      selected = stored_choices())
         }
     }, ignoreInit = TRUE)
-
-    display_tbl <- reactiveVal()
 
     unaggregated_tbl <- reactive({
         if (any(is.null(c(input$samples, input$molecules)))) return()
@@ -332,7 +308,7 @@ ms_server <- function(input, output, session) {
         )
     }, priority = -1)
 
-    last_click <- reactiveVal(NULL)
+
     observeEvent(input$click, {
         if (!is.null(input$click)) last_click(input$click)
     })
@@ -457,6 +433,7 @@ ms_server <- function(input, output, session) {
         }  else display_tbl()
     })
 
+
     # Print the name of the x value
     output$x_value <- renderText({
         if (is.null(clicked_sample())) return()
@@ -466,4 +443,14 @@ ms_server <- function(input, output, session) {
                  "<br>of value <code>", round(clicked_sample()$value,2), "</code>")
         }
     })
+
+    output$save_csv <- downloadHandler(filename = paste0(ms$file_dribble()$name, ".csv"),
+                                       content = function(file) {
+                                           write_csv(
+                                               ms$tbl() %>%
+                                                   select(Name, Molecule, Concentration),
+                                               file,
+                                               na = 0
+                                           )
+                                       })
 }

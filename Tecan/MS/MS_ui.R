@@ -30,8 +30,13 @@ ms_ui <- function(id) {
                        # hover = hoverOpts(id = ns("hover"),
                        #                   delayType = "debounce", delay = 300)
             ),
-            checkboxInput(inputId = ns("display_raw"),
-                          label = "Display unaggregated data"
+            fluidRow(
+                column(3,checkboxInput(inputId = ns("display_raw"),
+                                       label = "Display unaggregated data")
+                ),
+                column(3, downloadLink(outputId = ns("save_csv"),
+                                       label = "Download data as csv")
+                )
             ),
             tableOutput(ns("table"))
         )
