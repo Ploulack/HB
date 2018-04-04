@@ -1,3 +1,4 @@
+library(shiny)
 
 plate_pooling <- function(plate_data,
                           min_wells_nb = 1,

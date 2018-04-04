@@ -1,7 +1,7 @@
 library(shiny); library(rlang)
 
 source("order_dna_decision/decision_ui.R")
-source("ms/ms_ui.R")
+source("ms/MS_ui.R")
 source("tecan/tecan_ui.R")
 source("gel/gel_ui.R")
 source("auth/google_button_ui.R")

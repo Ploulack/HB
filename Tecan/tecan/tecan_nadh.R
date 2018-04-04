@@ -103,7 +103,7 @@ sample_widget_ui <- function(id, sample_well, sample_key, tecan_n, registry) {
                                         inputId = ns("well_key"),
                                         label = str_interp("Sample ${sample_well}"),
                                         choices = registry$KEY  %>%
-                                                prepend(c("", "Water", "Plasmid")),
+                                                prepend(c("", "Water")),
                                         selected = sample_key,
                                         multiple = FALSE)
                                 )

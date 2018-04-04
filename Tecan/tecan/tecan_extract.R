@@ -76,6 +76,18 @@ tecan_data <- function(tecan) {
        return(data)
 }
 
+tecan_extract <- function(input_file, dribble) {
+        folder <- "temp/"
+        #Todo: find the input_file in the dribble
+        if (!dir.exists(folder)) {
+                dir.create(folder)
+        }
+        local_xml <- paste0(folder,input_file)
+        drive_download(as_id(input_file), path = local_xml, overwrite = TRUE)
+
+        tecan_read_xml(local_xml)
+}
+
 tecan_read_xml <- function(xml_file) {
         safe_read_xml <- safely(read_xml)
         tecan <- safe_read_xml(xml_file)
@@ -91,18 +103,6 @@ tecan_read_xml <- function(xml_file) {
                      "type" = tecan$error,
                      "user_msg" = NULL)
         }
-}
-
-tecan_extract <- function(input_file, dribble) {
-        folder <- "temp/"
-        #Todo: find the input_file in the dribble
-        if (!dir.exists(folder)) {
-                dir.create(folder)
-        }
-        local_xml <- paste0(folder,input_file)
-        drive_download(as_id(input_file), path = local_xml, overwrite = TRUE)
-
-        tecan_read_xml(local_xml)
 }
 
 calc_values <- function(tecan_raw_data,

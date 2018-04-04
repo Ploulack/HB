@@ -1,27 +1,30 @@
-
-new_ms_modal <- function(ns, experiment_names, ms_edit= NULL, required_msg = NULL) {
+library(rlang)
+new_ms_modal <- function(ns, experiment_names, experiment = NULL, required_msg = NULL) {
 
     showModal(
         modalDialog(title = "Specify MS plate",
                     fluidPage(
                         selectInput(inputId = ns("new_ms_experiment"),
-                                    label = "Select Experiment for your plate",
+                                    label = "Experiment",
                                     choices = experiment_names %>% prepend(""),
-                                    selected = if_exists_than_that(ms_edit$experiment)
+                                    selected = if_exists_than_that(experiment)
                         ),
-                        conditionalPanel(condition = paste0("input['", ns("new_ms_experiment"),"'] == 'Unitary'"),
-                                         new_ms_unitary(ns, ms_edit)
+                        tabsetPanel(id = ns("new_ms_tabs")
                         )
-
                     ),
-                    if (!is.null(required_msg))
-                        div(tags$b(required_msg, style = "color: red;")),
                     footer = tagList(
-                        textInput(inputId = ns("url"),
-                                  label = "Add Benchling URL to CSV",
-                                  placeholder = "Paste your url here..."),
-                        actionButton(inputId = ns("new_ms_ok"),
-                                     label = "Generate Sample List CSV"),
+                        conditionalPanel(
+                            paste0("input['", ns("new_ms_experiment"),"'] != ''"),
+                            tagList(
+                                textInput(ns("file_note"),NULL, placeholder = "Will go into csv name..."),
+                                actionButton(inputId = ns("new_ms_plate"),
+                                             label = "Add plate"),
+                                actionButton(ns("use_plate_1"),
+                                             "Use Plate 1"),
+                                actionButton(inputId = ns("new_ms_ok"),
+                                             label = "Generate Sample List CSV")
+                            )
+                        ),
                         actionButton(inputId = ns("new_ms_cancel"),
                                      label = "Cancel")
                     ),
@@ -31,29 +34,52 @@ new_ms_modal <- function(ns, experiment_names, ms_edit= NULL, required_msg = NUL
     )
 }
 
-new_ms_unitary <- function(ns, ms_edit = NULL) {
+new_ms_tab <- function(ns, current_tab, is_48 = FALSE, plate_note = NULL, url = NULL, required_msg = NULL) {
+
+    tabPanel(title = current_tab,
+             fluidRow(
+                 column(3,
+                        textInput(inputId = ns(paste0(current_tab, "_", "url")),
+                                  label = "Add Benchling URL to CSV",
+                                  value = url,
+                                  placeholder = "Paste your url here...")
+                 ),
+                 column(3,
+                        textInput(inputId = ns(paste0(current_tab, "_", "plate_note")),
+                                  label = "Plate note",
+                                  placeholder = "ex: Sho & Alex mix",
+                                  value = plate_note,
+                                  width = '100%'
+                        )
+                 ),
+                 conditionalPanel(condition = paste0("input['", ns("new_ms_experiment"),"'] == 'Unitary' ", "&&",
+                                                     " input['", ns("new_ms_tabs"), "'] != 'Plate_1'"),
+                                  column(2,
+                                         conditionalPanel(paste0("input['", ns(paste0(current_tab, "_","add_sample")), "'] == 0"),
+                                                          checkboxInput(ns(paste0(current_tab, "_", "is_48")),
+                                                                        "48 wells plate?",
+                                                                        value = is_48
+                                                          )
+                                         )
+                                  )
+                 )
+             ),
+             conditionalPanel(condition = paste0("input['", ns("new_ms_experiment"),"'] == 'Unitary'"),
+                              new_ms_unitary(ns, current_tab)
+             ),
+             if (!is.null(required_msg))
+                 div(tags$b(required_msg, style = "color: red;"))
+    )
+}
+
+
+new_ms_unitary <- function(ns, current_tab) {
+
     tagList(
+        tags$hr(id = ns(paste0(current_tab, "_", "sample_bar"))),
         fluidRow(
             column(2,
-                   conditionalPanel(condition = paste0("input['", ns("add_sample"), "'] == 0"),
-                                    checkboxInput(ns("is_48_wells_plate"),
-                                                  "48 wells plate?",
-                                                  value = if_exists_than_that(ms_edit$is_48, FALSE))
-                   )
-            ),
-            column(3,
-                   textInput(inputId = ns("csv_note"),
-                             label = "file name note",
-                             placeholder = "ex: CBG_production",
-                             value = if_exists_than_that(ms_edit$file_note, ""),
-                             width = '100%'
-                   )
-            )
-        ),
-        tags$hr(id = ns("sample_bar")),
-        fluidRow(
-            column(2,
-                   actionButton(ns("add_sample"), label = "Add Sample")
+                   actionButton(ns(paste0(current_tab, "_", "add_sample")), label = "Add Sample")
             ),
             column(2,
                    numericInput(inputId = ns("n_copy"),
@@ -67,26 +93,27 @@ new_ms_unitary <- function(ns, ms_edit = NULL) {
     )
 }
 
-sample_row_ui <- function(id, strains, plasmids, positions,
-                          strain = NULL, plasmid = NULL, identifier = NULL, pos = NULL, group_id = NULL) {
+sample_row_ui <- function(id, strains, plasmids, positions, sample, pos
+                          # strain = NULL, plasmid = NULL, identifier = NULL, pos = NULL, group_id = NULL
+                          ) {
     ns <- NS(id)
     tags$div(id = ns("sample_row"),
              fluidRow(
                  column(2, selectizeInput(inputId = ns("strain"),
                                           label = "Strain",
                                           choices = strains,
-                                          selected = if_exists_than_that(strain))
+                                          selected = if_exists_than_that(sample$strain))
                  ),
                  column(2,
                         selectizeInput(inputId = ns("plasmid"),
                                        label = "Plasmid",
                                        choices = plasmids %>% prepend(NA),
-                                       selected = if_exists_than_that(plasmid))
+                                       selected = if_exists_than_that(sample$plasmid))
                  ),
                  column(2,
                         textInput(inputId = ns("identifier"),
                                   label = "Identifier",
-                                  value = if_exists_than_that(identifier))
+                                  value = if_exists_than_that(sample$identifier))
                  ),
                  column(1,
                         selectizeInput(inputId = ns("pos"),
@@ -98,8 +125,8 @@ sample_row_ui <- function(id, strains, plasmids, positions,
                         selectInput(inputId = ns("group_id"),
                                     label = "Group",
                                     choices = 1:48 %>% prepend(NA),
-                                    selected = if_exists_than_that(group_id)
-                                    )
+                                    selected = if_exists_than_that(sample$group_id)
+                        )
                  ),
                  column(width = 3,
                         uiOutput(ns("tags_widget"))
@@ -119,7 +146,6 @@ update_from_input <- function(var_name, ms_samples, input, sample_label) {
         which(ms_samples()$label == sample_label)
     })
 
-
     observeEvent(input[[var_name]], {
         # Concactenating the various tags into a single string
         value <- if (length(input[[var_name]]) > 1) {
@@ -132,10 +158,25 @@ update_from_input <- function(var_name, ms_samples, input, sample_label) {
         samples <- ms_samples()
         samples[[var_name]][row()] <- value
         ms_samples(samples)
-        print(ms_samples())
     })
 }
 
+update_tbl_from_plate_info <- function(var_name, plate_name, ms_samples, input) {
+    force(var_name)
+
+    observeEvent(input[[paste0(plate_name, "_", var_name)]], {
+        if (nrow(ms_samples()) == 0) return()
+        samples <- ms_samples()
+        value <- if_exists_than_that(input[[paste0(plate_name, "_", var_name)]], "")
+
+        samples <- samples %>%
+            mutate(!!var_name := if_else(plate == plate_name, value, samples[[var_name]]))
+
+        ms_samples(
+            samples
+        )
+    })
+}
 
 sample_row_server <- function(input, output, session, ms_samples, sample_label, db, tags) {
     ns <- session$ns
@@ -178,194 +219,137 @@ sample_row_server <- function(input, output, session, ms_samples, sample_label, 
     })
 }
 
-insert_sample <- function(session, label, dics, available_positions, ms_samples, db, tags = NULL, ...) {
+insert_sample <- function(session, label,
+                          dics, available_positions, ms_samples, db,
+                          current_tab = NULL, sample = NULL, pos = NULL) {
 
     ns <- session$ns
-    insertUI(selector = paste0("#",ns("sample_bar")),
+    tab <- if_exists_than_that(current_tab, sample$plate)
+
+    insertUI(selector = paste0("#",ns(paste0(tab, "_", "sample_bar"))),
              where = "beforeBegin",
-             ui = sample_row_ui(ns(paste0("sample_", label)),
+             ui = sample_row_ui(ns(paste0(tab, "_", "sample_", label)),
                                 dics$strains,
                                 dics$plasmids,
                                 available_positions,
-                                ...)
+                                sample,
+                                if_exists_than_that(pos, sample$pos)
+                                )
     )
 
     callModule(session = session,
                module = sample_row_server,
-               id = paste0("sample_", label),
+               id = paste0(tab, "_", "sample_", label),
                ms_samples = ms_samples,
                sample_label = label,
                db = db,
-               tags = tags
+               tags = if_exists_than_that(sample$tags) %>%
+                   str_split(pattern = ", ") %>%
+                   unlist()
     )
 }
 
-add_sample <- function(session, ms_samples, dics, available_pos, db_tags,n = 1, ref_sample = NULL) {
+add_sample <- function(session, input, ms_samples, dics, positions, db_tags, current_tab = NULL, n = 1, ref_sample = NULL) {
     force(ref_sample)
 
+    current_tab <- current_tab %||% input$new_ms_experiment
     labels <- first_unused(ms_samples()$label, n)
 
-    positions <- available_pos() %>%
+    available_positions <- positions %>%
         keep(~!(. %in% ms_samples()$pos))
+
 
     for (i in 1:n) {
         label <- labels[i]
         # Add new row for the new letter
         ms_samples(
             ms_samples() %>%
-                add_row(label = label)
+                add_row(label = label,
+                        plate = current_tab,
+                        url = input[[paste0(current_tab, "_", "url")]],
+                        plate_note = input[[paste0(current_tab, "_", "plate_note")]],
+                        is_48 = input[[paste0(current_tab, "_", "is_48")]]
+                )
         )
 
         insert_sample(session,
                       label = label,
                       dics = dics,
-                      available_positions = available_pos(),
+                      available_positions = positions,
                       ms_samples = ms_samples,
                       db = db_tags,
-                      pos = positions[i],
-                      strain = if_exists_than_that(ref_sample$strain),
-                      plasmid = if_exists_than_that(ref_sample$plasmid),
-                      identifier = if_exists_than_that(ref_sample$identifier),
-                      group_id = if_exists_than_that(ref_sample$group_id),
-                      tags = if_exists_than_that(ref_sample$tags) %>%
-                          str_split(pattern = ", ") %>%
-                          unlist()
+                      current_tab = current_tab,
+                      sample = if_exists_than_that(ref_sample),
+                      pos = available_positions[i]
+                      # strain = if_exists_than_that(ref_sample$strain),
+                      # plasmid = if_exists_than_that(ref_sample$plasmid),
+                      # identifier = if_exists_than_that(ref_sample$identifier),
+                      # group_id = if_exists_than_that(ref_sample$group_id),
+                      # tags = if_exists_than_that(ref_sample$tags) %>%
+                      #     str_split(pattern = ", ") %>%
+                      #     unlist()
         )
     }
 }
 
-generate_sample_list_csv <- function(samples_tbl, input, user) {
-    #The calibration files from the MS computer is synced
-    #Calibration is updated from time to time, we always use the last one
-    #We filter on recent date to save time
-    cal_file_name <- ms_calibration_files %>%
-        as_id() %>%
-        drive_ls(pattern = "ipr" , q = "modifiedTime > '2018-01-12T12:00:00'") %>%
-        arrange(desc(drive_resource %>% map_chr("createdTime"))) %>%
-        pull(name) %>%
-        first()
+start_plate_observers <- function(session, input, ms_samples, plate, ms_edit, dics, db_tags, csv_name) {
 
-    analytes <- samples_tbl %>%
-        arrange(str_extract(pos, "[A-Z]"),
-                as.integer(str_extract(pos, "\\d+"))
-        ) %>%
-        mutate(
-            FILE_NAME = paste(strain,
-                              if_else(is.na(plasmid), "", plasmid),
-                              if_exists_than_that(identifier, ""),
-                              row_number(),
-                              if_else(is.na(group_id), "", paste0("G-",group_id)),
-                              sep = "_") %>%
-                str_remove("_$"),
-            #Nb 2 is the plate number, plate #1 is ran just before and includes standards and blanks...
-            SAMPLE_LOCATION = paste0("2:", split_pos_column_row(pos)),
-            TYPE = "ANALYTE",
-            CONC_A = "",
-            SPARE_1 = if_else(is.na(group_id), "", group_id),
-            FILE_TEXT = tags
-        ) %>%
-        select(-(label:pos))
-browser()
-    map2_dfr(c("blank1","std_1", "std_10", "std_100", "std_1000", "blank2"),
-             # 96 plate for now...
-             generate_48_pos()[1:6],
-             ~ tibble(
-                 FILE_NAME = .x,
-                 SAMPLE_LOCATION = paste0("1:", split_pos_column_row(.y)),
-                 TYPE = if (str_detect(.x, "blank")) "BLANK" else "STANDARD",
-                 CONC_A = str_extract(.x, "(?<=_)\\d+"),
-                 SPARE_1 = "",
-                 FILE_TEXT = ""
-             )
-    ) %>%
-        bind_rows(analytes) %>%
-        mutate(
-            CONC_A = if_else(is.na(CONC_A), "", CONC_A),
-            ID = row_number() %>% as.character(),
-            MS_FILE = "C:\\MassLynx\\UNITARY.PRO\\ACQUDB\\General_all_20180213.exp",
-            INLET_FILE = "long_hold",
-            INJ_VOL = 3 %>% as.integer(),
-            MS_TUNE_FILE = paste0("C:\\MassLynx\\IntelliStart\\Results\\Unit Mass Resolution\\",
-                                  cal_file_name),
-            SPARE_2 = input$csv_note,
-            SPARE_3 = user,
-            SPARE_4 = Sys.time() %>% force_tz("America/Montreal"),
-            SPARE_5 = input$url
-        ) %>%
-        mutate(Index = row_number()) %>%
-        select(
-            Index,
-            FILE_NAME,
-            ID,
-            MS_FILE,
-            INLET_FILE,
-            SAMPLE_LOCATION,
-            INJ_VOL,
-            TYPE,
-            CONC_A,
-            MS_TUNE_FILE,
-            SPARE_1,
-            SPARE_2,
-            SPARE_3,
-            SPARE_4,
-            SPARE_5,
-            FILE_TEXT
-        )
-}
+    observeEvent(input[[paste0(plate, "_add_sample")]], {
+        force(plate)
+
+        if (ms_samples() %>% nrow() > 0) {
+            ms_edit <- save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
+                                                    csv_name = csv_name,
+                                                    samples = ms_samples(),
+                                                    ms_edit = ms_edit)
+        }
+
+        positions <- {
+            if (input[[paste0(plate, "_", "is_48")]])
+                generate_48_pos()
+            else
+                generate_96_pos()
+        }
+
+        if (plate == "Plate_1")
+                positions <- positions[-(1:6)]
 
 
-check_ongoing_edit <- function(folder_url, user, ms_edit) {
 
-    file <- folder_url %>%
-        as_id() %>%
-        drive_ls(pattern = user)
+        add_sample(session, input, ms_samples, dics, positions, db_tags, current_tab = plate)
+    })
 
-    if (nrow(file) == 0) {
-        ms_edit$is_ongoing <- FALSE
-    }
-    else {
-        if (nrow(file) > 1) file[-1, ] %>%
-            by_row(..f = ~ drive_trash(.x))
-
-        path <- paste0("temp/", file[1,]$name)
-        drive_download(file[1,], path, overwrite = TRUE)
-
-        ms_edit$is_ongoing <- TRUE
-        ms_edit$data  <- read_csv(path)
-        ms_edit$is_48  <- str_detect(file[1,]$name, "is_48")
-        #captures in file name the experiment name after 'exp_' and before the next underscore
-        ms_edit$experiment <- str_extract(file[1,]$name, "(?<=exp_)[A-z]*?(?=_)")
-        ms_edit$file_note <- str_extract(file[1,]$name, "(?<=_note_).*(?=\\.)")
-        ms_edit$drbl <- file[1,]
-    }
-}
-
-
-save_ms_edit_as_csv_on_drive <- function(drive_url,
-                                         csv_name,
-                                         samples,
-                                         ms_edit,
-                                         local_folder = "temp/") {
-
-    file_name <- paste0(local_folder, csv_name)
-    write_csv(samples, file_name, append = FALSE)
-    if (ms_edit$is_ongoing && csv_name == ms_edit$drbl$name) {
-        drive_update(file = ms_edit$drbl,
-                     media = file_name)
-        ms_edit
-    } else {
-        ms_edit$drbl <- drive_upload(media = file_name,
-                                     path = drive_url %>% as_id())
-        ms_edit$is_ongoing <- TRUE
-        ms_edit
-    }
-}
-
-
-split_pos_column_row <- function(pos) {
-    paste0(
-        str_sub(pos, end = 1), ",", str_sub(pos, start = 2)
+    walk(c("plate_note", "url", "is_48"),
+         ~ update_tbl_from_plate_info(var_name = .,
+                                      plate_name = plate,
+                                      ms_samples = ms_samples,
+                                      input = input
+         )
     )
+
 }
 
+reset_ms_edit <- function(ms_samples, tab_plates) {
+    ms_samples(
+        ms_samples() %>%
+            slice(0)
+    )
+    tab_plates("")
+    removeModal()
+}
 
+add_plate <- function(ns, session, input, tab_plates, new_plate, ms_samples, ms_edit, dics, db_tags, csv_name) {
+
+    tab_plates(append(tab_plates(), new_plate))
+
+        appendTab(inputId = "new_ms_tabs",
+                  tab = new_ms_tab(ns,
+                                   current_tab = new_plate,
+                                   is_48 = if (new_plate == "Plate_1") TRUE else FALSE,
+                                   required_msg = NULL),
+                  select = TRUE)
+
+        start_plate_observers(session = session, input = input,
+                              ms_samples = ms_samples, plate = new_plate,
+                              ms_edit = ms_edit, dics = dics, db_tags = db_tags, csv_name = csv_name)
+}
