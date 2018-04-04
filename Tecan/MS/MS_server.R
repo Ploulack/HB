@@ -78,10 +78,10 @@ ms_server <- function(input, output, session) {
         registry <- NULL
     }
 
-#Debug
-observeEvent(ms_samples(), {
-    print(ms_samples())
-})
+    #Debug
+    observeEvent(ms_samples(), {
+        print(ms_samples())
+    })
 
     observeEvent(input$create_ms, {
 
@@ -136,7 +136,7 @@ observeEvent(ms_samples(), {
                     # Start the observers related to each plate
                     start_plate_observers(session = session, input = input,
                                           ms_samples = ms_samples, plate = .$plate,
-                                          ms_edit = ms_edit, dics = dics, db_tags = db_tags, csv_name = csv_name())
+                                          ms_edit = ms_edit, dics = dics, db_tags = db_tags, csv_name = csv_name)
                 }
                 )
 
@@ -161,28 +161,19 @@ observeEvent(ms_samples(), {
         plates <- paste0("Plate_", 2:8)
         new_plate <- plates[!plates %in% tab_plates()][1]
 
-        add_plate(ns, session, input, tab_plates, new_plate, ms_samples, ms_edit, dics, db_tags, csv_name())
-
-        # tab_plates(append(tab_plates(), new_plate))
-        #
-        # appendTab(inputId = "new_ms_tabs",
-        #           tab = new_ms_tab(ns,
-        #                            current_tab = new_plate,
-        #                            required_msg = NULL),
-        #           select = TRUE)
-        #
-        # start_plate_observers(session = session, input = input,
-        #                       ms_samples = ms_samples, plate = new_plate,
-        #                       ms_edit = ms_edit, dics = dics, db_tags = db_tags, csv_name = csv_name())
+        add_plate(ns, session, input, tab_plates, new_plate, ms_samples, ms_edit, dics, db_tags, csv_name)
     })
 
     observeEvent(input$use_plate_1, {
-        add_plate(ns = ns, session = session, input = input, tab_plates = tab_plates, new_plate = "Plate_1", ms_samples = ms_samples, ms_edit = ms_edit, dics = dics, db_tags = db_tags, csv_name = csv_name())
+        add_plate(ns = ns, session = session, input = input, tab_plates = tab_plates,
+                  new_plate = "Plate_1", ms_samples = ms_samples, ms_edit = ms_edit,
+                  dics = dics, db_tags = db_tags, csv_name = csv_name)
     })
 
     available_pos <- reactive({
+
         if (input$new_ms_tabs == "Plate_1") {
-            return(pos_48[-6])
+            return(pos_48[-(1:6)])
         }
 
         if (input[[paste0(input$new_ms_tabs, "_", "is_48")]])
@@ -197,19 +188,19 @@ observeEvent(ms_samples(), {
     })
 
 
-    observeEvent(input$copy, {
-
-        if (ms_samples() %>% nrow() > 0) {
-            ms_edit <- save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
-                                                    csv_name = csv_name(),
-                                                    samples = ms_samples(),
-                                                    ms_edit = ms_edit)
-        }
-
-        add_sample(session, input, ms_samples, dics, available_pos(), db_tags, input$new_ms_tabs,
-                   n = input$n_copy,
-                   ref_sample = ms_samples() %>% slice(n()))
-    })
+    # observeEvent(input$copy, {
+    #
+    #     if (ms_samples() %>% nrow() > 0) {
+    #         ms_edit <- save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
+    #                                                 csv_name = csv_name(),
+    #                                                 samples = ms_samples(),
+    #                                                 ms_edit = ms_edit)
+    #     }
+    #     browser()
+    #     add_sample(session, input, ms_samples, dics, available_pos(), db_tags, input$new_ms_tabs,
+    #                n = input$n_copy,
+    #                ref_sample = ms_samples() %>% slice(n()))
+    # })
 
     observeEvent(input$new_ms_ok, {
 

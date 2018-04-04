@@ -79,14 +79,15 @@ new_ms_unitary <- function(ns, current_tab) {
         tags$hr(id = ns(paste0(current_tab, "_", "sample_bar"))),
         fluidRow(
             column(2,
-                   actionButton(ns(paste0(current_tab, "_", "add_sample")), label = "Add Sample")
+                   actionButton(ns(paste0(current_tab, "_", "add_sample")),
+                                "Add Sample")
             ),
             column(2,
-                   numericInput(inputId = ns("n_copy"),
+                   numericInput(inputId = ns(paste0(current_tab, "_","n_copy")),
                                 label = "Nb of Copies", value = 1, min = 1, max = 20, step = 1)
             ),
             column(2,
-                   actionButton(ns("copy"),
+                   actionButton(ns(paste0(current_tab, "_","copy")),
                                 paste0("Duplicate N times"))
             )
         )
@@ -281,25 +282,20 @@ add_sample <- function(session, input, ms_samples, dics, positions, db_tags, cur
                       current_tab = current_tab,
                       sample = if_exists_than_that(ref_sample),
                       pos = available_positions[i]
-                      # strain = if_exists_than_that(ref_sample$strain),
-                      # plasmid = if_exists_than_that(ref_sample$plasmid),
-                      # identifier = if_exists_than_that(ref_sample$identifier),
-                      # group_id = if_exists_than_that(ref_sample$group_id),
-                      # tags = if_exists_than_that(ref_sample$tags) %>%
-                      #     str_split(pattern = ", ") %>%
-                      #     unlist()
         )
     }
 }
 
-start_plate_observers <- function(session, input, ms_samples, plate, ms_edit, dics, db_tags, csv_name) {
+add_sample_observers <- function(input_name, session, input, ms_samples, plate, ms_edit, dics, db_tags, csv_name) {
 
-    observeEvent(input[[paste0(plate, "_add_sample")]], {
-        force(plate)
+    force(input_name)
+    observeEvent(input[[paste0(plate, input_name)]], {
+
+        force(plate); force(input_name)
 
         if (ms_samples() %>% nrow() > 0) {
             ms_edit <- save_ms_edit_as_csv_on_drive(drive_url = get_drive_url(session, "ms_ongoing_edit"),
-                                                    csv_name = csv_name,
+                                                    csv_name = csv_name(),
                                                     samples = ms_samples(),
                                                     ms_edit = ms_edit)
         }
@@ -311,13 +307,27 @@ start_plate_observers <- function(session, input, ms_samples, plate, ms_edit, di
                 generate_96_pos()
         }
 
-        if (plate == "Plate_1")
-                positions <- positions[-(1:6)]
+        if (plate == "Plate_1") positions <- positions[-(1:6)]
 
+        if (input_name == "_add_sample") {
+            add_sample(session, input, ms_samples, dics, positions, db_tags, current_tab = plate)
+        } else {
+            add_sample(session, input, ms_samples, dics, positions, db_tags, current_tab = plate,
+                       n = input[[paste0(plate,"_n_copy")]],
+                       ref_sample = ms_samples() %>%
+                           filter(plate == plate) %>%
+                           slice(n())
+            )
+        }
+    },)
+}
 
+start_plate_observers <- function(session, input, ms_samples, plate, ms_edit, dics, db_tags, csv_name) {
 
-        add_sample(session, input, ms_samples, dics, positions, db_tags, current_tab = plate)
-    })
+    walk(
+        c("_add_sample", "_copy"),
+        ~ add_sample_observers(input_name = ., session, input, ms_samples, plate, ms_edit, dics, db_tags, csv_name)
+    )
 
     walk(c("plate_note", "url", "is_48"),
          ~ update_tbl_from_plate_info(var_name = .,
