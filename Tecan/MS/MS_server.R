@@ -234,7 +234,7 @@ ms_server <- function(input, output, session) {
                                             "date_created": ${date},
                                             "data": ${ms_dat_json}}'
             )
-
+browser()
             insert_log <- ms_db$insert(data = query)
         }
         file_record(record)

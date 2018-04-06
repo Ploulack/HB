@@ -20,10 +20,10 @@ extract_ms_data <- function(xml) {
             Tags = str_split(desc, ", "),
             Strain = str_extract(name, "^\\w+?(?=_)"),
             Plasmid = str_extract(name, "PLAS-[\\d]+"),
-            Identifier = str_extract(name, "(?<=_)\\w+(?=_\\d+(_G-\\d+)?$)")
+            Identifier = str_extract(name, "(?<=_)[^_]\\w+(?=_\\d+(_G-\\d+)?$)")
         ) %>%
-        select(Name = name,type, sampleid = id, Tags, Time)
-browser()
+        select(Name = name,type, sampleid = id, Strain, Plasmid, Identifier, Tags, Time)
+
     samples %>%
         xml_nodes("COMPOUND") %>%
         map(xml_attrs) %>%

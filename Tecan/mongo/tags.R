@@ -2,7 +2,7 @@
 
 tags_widget_server <- function(input, output, session, db) {
     ns <- session$ns
-    browser()
+
     updateSelectizeInput(session,
                          inputId = "tags",
                          # choices = tags_retrieve(db),
