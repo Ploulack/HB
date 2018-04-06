@@ -16,7 +16,8 @@ mongo_file_entry <- function(db, file, type = "tecan") {
 
         return(list(
                 "entry_exists" = entry_exists,
-                "entry" = entry
+                "entry" = entry,
+                "delay" = db_delay[3]
         ))
 }
 #TODO: Add confirmation that db update worked fine

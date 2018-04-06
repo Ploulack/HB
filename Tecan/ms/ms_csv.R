@@ -34,7 +34,8 @@ generate_sample_list_csv <- function(samples_tbl, input, user) {
                               row_number(),
                               if_else(is.na(group_id), "", paste0("G-",group_id)),
                               sep = "_") %>%
-                str_remove("_$"),
+                str_remove("_$") %>%
+                str_remove("(?<=_)_+"),
             #Nb 2 is the plate number, plate #1 is ran just before and includes standards and blanks...
             SAMPLE_LOCATION = format_plate_pos(plate, pos),
             TYPE = "ANALYTE",

@@ -26,15 +26,15 @@ registry_key_names <- function(registry_url = registry_url,
 
         update_file_if_outdated(url = registry_url, sheets = registry_sheets, local_file = file)
 
-        map_dfr(
-                registry_sheets,
-                ~ read_xlsx(path = file,
-                            sheet = .x,
-                            range = cell_cols(c(1:3,5:6))
-                ) %>%
-                        mutate(type = .x)
+    map_dfr(
+        registry_sheets,
+        ~ read_xlsx(path = file,
+                    sheet = .x,
+                    range = cell_cols(c(1:3,5:6))
         ) %>%
-                mutate(Length = as.integer(Length))
+            mutate(type = .x)
+    ) %>%
+        mutate(Length = as.integer(Length))
 }
 
 get_strains <- function() {

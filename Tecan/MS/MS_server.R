@@ -214,9 +214,14 @@ ms_server <- function(input, output, session) {
 
         record <- mongo_file_entry(ms_db, ms$id(), tab_name)
 
-        if (!record$entry_exists) {
+        if (!record$entry_exists && record$delay < 100) {
             date <- Sys.time() %>%
-                force_tz(tzone = "America/Montreal")
+                force_tz(tzone = "America/Montreal") %>%
+                jsonlite::toJSON(POSIXt = "mongo",
+                                 pretty = TRUE) %>%
+                str_remove("\\[[\\n|\\s]+") %>%
+                str_remove("[\\n|\\s]+\\]")
+
 
             ms_dat_json <- jsonlite::toJSON(x = ms$tbl(),
                                             dataframe = "rows",
@@ -226,7 +231,7 @@ ms_server <- function(input, output, session) {
             query <- str_interp('{
                                             "_id" : "${ms$id()}",
                                             "name": "${ms$file_dribble()$name}",
-                                            "date_created" : "${date}",
+                                            "date_created": ${date},
                                             "data": ${ms_dat_json}}'
             )
 
@@ -444,13 +449,16 @@ ms_server <- function(input, output, session) {
         }
     })
 
-    output$save_csv <- downloadHandler(filename = paste0(ms$file_dribble()$name, ".csv"),
-                                       content = function(file) {
-                                           write_csv(
-                                               ms$tbl() %>%
-                                                   select(Name, Molecule, Concentration),
-                                               file,
-                                               na = 0
-                                           )
-                                       })
+    output$save_csv <- downloadHandler(
+        filename = function() {
+            paste0(ms$file_dribble()$name, ".csv")
+        },
+        content = function(file) {
+            write_csv(
+                ms$tbl() %>%
+                    select(Name, Molecule, Concentration),
+                file,
+                na = "0")
+        }
+    )
 }

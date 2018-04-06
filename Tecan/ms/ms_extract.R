@@ -16,9 +16,14 @@ extract_ms_data <- function(xml) {
         map_df(as.list) %>%
         mutate(Time = paste0(createdate,"_",createtime) %>%
                    dmy_hms(tz = "America/Montreal")) %>%
-        mutate(Tags = str_split(desc, ", ")) %>%
+        mutate(
+            Tags = str_split(desc, ", "),
+            Strain = str_extract(name, "^\\w+?(?=_)"),
+            Plasmid = str_extract(name, "PLAS-[\\d]+"),
+            Identifier = str_extract(name, "(?<=_)\\w+(?=_\\d+(_G-\\d+)?$)")
+        ) %>%
         select(Name = name,type, sampleid = id, Tags, Time)
-
+browser()
     samples %>%
         xml_nodes("COMPOUND") %>%
         map(xml_attrs) %>%
