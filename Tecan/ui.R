@@ -1,7 +1,7 @@
 library(shiny); library(rlang)
 
 source("order_dna_decision/decision_ui.R")
-source("ms/MS_ui.R")
+source("ms/MS_ui.R"); source("search/search_ui.R")
 source("tecan/tecan_ui.R")
 source("gel/gel_ui.R")
 source("auth/google_button_ui.R")
@@ -45,6 +45,10 @@ tabsetPanel(id = "tab",
             display_tab(panel_name = "MS",
                         btn_label = "Open MS viewer",
                         module_ui_name = "ms"),
+
+            display_tab(panel_name = "Search",
+                        btn_label = "Start searching",
+                        module_ui_name = "search"),
 
             display_tab(panel_name = "Hamilton",
                         btn_label = "Start Hamilton editor",

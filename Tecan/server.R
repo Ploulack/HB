@@ -34,7 +34,6 @@ function(input, output, session) {
         shiny::validate(need(!is.null(google_token()), message = FALSE))
         source("tecan/tecan_server.R")
         callModule(tecan_server, "tecan")
-        # callModule(tecan_server, "tecan",gtoken = readRDS(token_name))
     })
 
     # GEL
@@ -49,6 +48,13 @@ function(input, output, session) {
         shiny::validate(need((input$ms_go > 0), message = FALSE))
         source("ms/MS_server.R")
         callModule(ms_server, "ms")
+    })
+
+    # Search
+    observeEvent(input$search_go, {
+        shiny::validate(need((input$search_go > 0), message = FALSE))
+        source("search/search_server.R")
+        callModule(search_server, "search")
     })
 
     #HAMILTON

@@ -1,0 +1,31 @@
+#### NOT UP TO DATE STRATEGY FOR TEXT INDEX STILL UNCLEAR April 5th ####
+Notes for PROD:
+add index on tag:
+db_ms$index('{"data.Tags" : 1}')
+db_ms$index('{"data.Name" : "text", "data.Molecule" : "text" }')
+
+
+db_ms$find('{"data.Strain" : "HB189"}', '{"name" : 1, "data" : {"$slice" : 1}}')
+Take documents that have at least a sample with strain HB HB189 and returns the first row of the data table (array)
+
+#### NEXT DEPLOYMENT ON PROD ####
+
+#### CREATE VIEW FOR UNIQUE MOLECULES ####
+db.runCommand({create : "molecules", viewOn: "ms",
+    pipeline: [
+        {
+            $unwind: "$data"
+        },
+        {
+            $group:
+            {
+                "_id": "",
+                "mols": {$addToSet: "$data.Molecule"}
+            }
+        },
+        {
+            $project:
+            {"_id":0}
+        }
+        ]
+})

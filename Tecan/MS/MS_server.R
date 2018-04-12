@@ -216,7 +216,6 @@ ms_server <- function(input, output, session) {
 
         if (!record$entry_exists && record$delay < 100) {
             date <- Sys.time() %>%
-                force_tz(tzone = "America/Montreal") %>%
                 jsonlite::toJSON(POSIXt = "mongo",
                                  pretty = TRUE) %>%
                 str_remove("\\[[\\n|\\s]+") %>%
@@ -234,7 +233,7 @@ ms_server <- function(input, output, session) {
                                             "date_created": ${date},
                                             "data": ${ms_dat_json}}'
             )
-browser()
+
             insert_log <- ms_db$insert(data = query)
         }
         file_record(record)

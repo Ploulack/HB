@@ -1,0 +1,20 @@
+search_ui <- function(id) {
+    ns <- NS(id)
+
+    fluidPage(
+        sidebarPanel(
+            selectInput(ns("search_molecules"),
+                   label = "Select Molecule to search",
+                   choices = "Waiting from Mongo"),
+            numericInput(ns("min_concentration"),
+                         label = "Min Concentration",
+                         value = 10,
+                         min = 1),
+            actionButton(ns("search_go"),label = "Search")
+        , width = 2),
+        mainPanel(
+            tableOutput(ns("search_results"))
+        )
+    )
+}
+
