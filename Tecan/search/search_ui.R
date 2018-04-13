@@ -13,6 +13,10 @@ search_ui <- function(id) {
             actionButton(ns("search_go"),label = "Search")
         , width = 2),
         mainPanel(
+            tableOutput(ns("totals")),
+            conditionalPanel(str_interp("output['${ns('total_samples')}'] < 100"),
+                             actionButton(ns("display_samples"),
+                                          "Display Samples")),
             tableOutput(ns("search_results"))
         )
     )

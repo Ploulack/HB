@@ -1,7 +1,10 @@
+library(tidyverse); library(mongolite)
+source("helpers/mongo_helpers.R")
 
-search_mol_by_min_conc <- function(db, molecule, min_conc) {
+search_mol_by_min_conc <- function(db, molecule, min_conc, with_samples = FALSE) {
     molecule_filter <- c(molecule, toupper(molecule)) %>%
             jsonlite::toJSON(pretty = TRUE)
+
     query <- str_interp('{
                                 "data": { "$elemMatch" :
                                             {
@@ -42,25 +45,20 @@ search_mol_by_min_conc <- function(db, molecule, min_conc) {
                                     }
                                     }')
     group <- str_interp('{
-                                "$group": {
-                                    "_id": {
-                                            "strain": "$data.Strain",
-                                            "date_created" : "$date_created",
-                                            "xml" : "$xml"
-                                            },
-                                    "count": {"$sum" : 1},
-                                    "mean": {"$avg": "$data.Concentration"},
-                                    "samples_data" : {"$push": {
-                                                        "concentration": "$data.Concentration",
-                                                        "id": "$data.sampleid",
-                                                        "name": "$data.Name"
-                                                        }}
-                                }
-                                    }')
-    browser()
-    res <- aggregate_pipeline(db, match, project1, unwind, project2, group)
+                            "$group": {
+                                "_id": {
+                                    "strain": "$data.Strain",
+                                    "date_created" : "$date_created",
+                                    "xml" : "$xml"
+                                },
+                                "count": {"$sum" : 1},
+                                "mean": {"$avg": "$data.Concentration"}
+                            }
+                        }')
+    if (with_samples) {
+        res <- aggregate_pipeline(db, match, project1, unwind, project2)
+    } else {
+        res <- aggregate_pipeline(db, match, project1, unwind, project2, group)
+    }
     res
-    # pipeline <- paste(match, project1, unwind, project2, group,sep = ",")
-    # pipeline <- str_interp('[${pipeline}]')
-    # res <- db$aggregate(pipeline)
 }

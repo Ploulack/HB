@@ -36,8 +36,14 @@ search_server <- function(input, output, session) {
                                       min_conc = input$min_concentration)
 
         if (nrow(res) == 0) return(tibble(count = 0))
-
         browser()
+
+        # results$tbl <- bind_cols(
+        #     res %>%
+        #         select(-data),
+        #     res$data
+        #     ) %>%
+        #     as_tibble()
 
         results$tbl <- res %>%
             with(., tibble(
@@ -57,4 +63,20 @@ search_server <- function(input, output, session) {
     output$search_results <- renderTable({
         display_tbl()
     })
+
+    totals_tbl <- reactive({
+        display_tbl() %>%
+            summarise(`Total number of samples` = sum(count),
+                      `Nb of different strains` = unique(strain) %>% length())
+    })
+
+    output$totals <- renderTable({
+        totals_tbl()
+    })
+
+    output$total_samples <- reactive({
+        totals_tbl() %>%
+            pull(1)
+    })
+    outputOptions(output, "total_samples", suspendWhenHidden = FALSE)
 }

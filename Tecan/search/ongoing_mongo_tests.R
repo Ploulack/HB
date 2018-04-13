@@ -1,3 +1,10 @@
+#Note strategy :
+# faire d'abord
+# aggregate_pipeline(db, match, project1, unwind, project2, group)
+# puis si count total < X faire
+# aggregate_pipeline(db, match, project1, unwind, project2)
+
+
 db_ms$find('{"data.Tags" : "olivetol", "data.Concentration": { "$exists" : true}}')
 db_ms$find('{"data.Strain" : "HB189"}', '{"name" : 1, "data" : {"$slice" : 1}}')
 
