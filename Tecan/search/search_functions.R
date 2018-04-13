@@ -41,8 +41,8 @@ search_mol_by_min_conc <- function(db, molecule, min_conc, with_samples = FALSE)
                                     "date_created" : 1,
                                     "data.Concentration" : 1,
                                     "data.sampleid": 1,
-                                    "data.Name" : 1
-                                    }
+                                    "data.Name" : 1,
+                                    "data.Molecule" : 1}
                                     }')
     group <- str_interp('{
                             "$group": {

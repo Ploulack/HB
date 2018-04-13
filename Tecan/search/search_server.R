@@ -1,7 +1,8 @@
 c("mongo/tags.R",
   "mongo/db_values.R",
   "helpers/mongo_helpers.R",
-  "search/search_functions.R") %>%
+  "search/search_functions.R",
+  "helpers/ms_display/ms_display.R") %>%
     walk(source)
 
 search_server <- function(input, output, session) {
@@ -11,6 +12,10 @@ search_server <- function(input, output, session) {
     #Get unique searchable molecules from mongo
     mols_view <- db_from_environment(session, collection = "molecules")
     molecules <- mols_view$find('{}', '{"mols" : 1}')
+    results <- reactiveValues(
+        tbl = tibble(),
+        with_samples = tibble()
+    )
     rm(mols_view)
 
     #Fill the search molecules input
@@ -23,9 +28,6 @@ search_server <- function(input, output, session) {
                               prepend("")
         )
     })
-    results <- reactiveValues(
-        tbl = tibble()
-    )
 
 
     observeEvent(input$search_go, {
@@ -36,14 +38,6 @@ search_server <- function(input, output, session) {
                                       min_conc = input$min_concentration)
 
         if (nrow(res) == 0) return(tibble(count = 0))
-        browser()
-
-        # results$tbl <- bind_cols(
-        #     res %>%
-        #         select(-data),
-        #     res$data
-        #     ) %>%
-        #     as_tibble()
 
         results$tbl <- res %>%
             with(., tibble(
@@ -65,6 +59,7 @@ search_server <- function(input, output, session) {
     })
 
     totals_tbl <- reactive({
+        if (is.null(display_tbl()) || nrow(display_tbl()) == 0) return()
         display_tbl() %>%
             summarise(`Total number of samples` = sum(count),
                       `Nb of different strains` = unique(strain) %>% length())
@@ -75,8 +70,29 @@ search_server <- function(input, output, session) {
     })
 
     output$total_samples <- reactive({
+        if (is.null(totals_tbl()) || nrow(totals_tbl()) == 0) return(101)
         totals_tbl() %>%
             pull(1)
     })
     outputOptions(output, "total_samples", suspendWhenHidden = FALSE)
+
+    observeEvent(input$display_samples, {
+        res <- search_mol_by_min_conc(db = ms_db,
+                                      molecule = input$search_molecules,
+                                      min_conc = input$min_concentration,
+                                      with_samples = TRUE)
+        results$with_samples <- bind_cols(
+            res %>%
+                select(-data),
+            res$data
+            ) %>%
+            as_tibble()
+    }, priority = 10)
+
+    callModule(module = ms_data_display_server,
+               id = "search",
+               session = session,
+               go_button = reactive(input$display_samples),
+               ms_tbl = reactive(results$with_samples),
+               type = "search")
 }
