@@ -1,4 +1,54 @@
 #### NOT UP TO DATE STRATEGY FOR TEXT INDEX STILL UNCLEAR April 5th ####
+#### NEXT ####
+db.runCommand({create : "tags_view", viewOn: "ms",
+    pipeline: [
+           {
+        "$project": {
+            "tags": "$data.Tags"
+        }
+    },
+    {
+        "$unwind": "$tags"
+    },
+    {
+        "$group": {
+            "_id": "",
+            "tags": {
+                "$addToSet": "$tags"
+            }
+        }
+    },
+    {
+        "$unwind": "$tags"
+    },
+    {
+        "$unwind": "$tags"
+    },
+    {
+        "$group": {
+            "_id": "",
+            "tags": {
+                "$addToSet": "$tags"
+            }
+        }
+    },
+    {
+        "$project": {
+            "_id": 0,
+            "tags": 1
+        }
+    }
+        ]
+})
+
+
+
+
+
+
+
+#### OLD ####
+
 Notes for PROD:
 add index on tag:
 db_ms$index('{"data.Tags" : 1}')
@@ -10,7 +60,7 @@ Take documents that have at least a sample with strain HB HB189 and returns the 
 
 #### NEXT DEPLOYMENT ON PROD ####
 
-#### CREATE VIEW FOR UNIQUE MOLECULES ####
+#### CREATE VIEW FOR UNIQUE MOLECULES #### DONE
 db.runCommand({create : "molecules", viewOn: "ms",
     pipeline: [
         {

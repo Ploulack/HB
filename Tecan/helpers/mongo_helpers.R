@@ -69,3 +69,9 @@ aggregate_pipeline <- function(db, ...) {
         stop(res$error$message)
     }
 }
+
+to_pretty_json <- function(...) {
+    pipeline <- paste(..., sep = ",")
+    str_interp('[${pipeline}]') %>%
+    jsonlite::prettify()
+}

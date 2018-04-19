@@ -1,20 +1,25 @@
 library(tidyverse); library(mongolite)
 source("helpers/mongo_helpers.R")
 
-search_mol_by_min_conc <- function(db, molecule, min_conc, with_samples = FALSE) {
+search_mol_by_min_conc <- function(db, molecule, min_conc, max_conc, tags, with_samples = FALSE) {
     molecule_filter <- c(molecule, toupper(molecule)) %>%
             jsonlite::toJSON(pretty = TRUE)
+    tags_filter <- tags %>%
+        jsonlite::toJSON()
 
-    query <- str_interp('{
+
+    query_start <- str_interp('{
                                 "data": { "$elemMatch" :
                                             {
-                                            "Concentration" : {"$gt" : ${min_conc}},
+                                            "Concentration" : {"$gt" : ${min_conc}, "$lt" : ${max_conc}},
                                             "Molecule" : { "$regex" : "${molecule}", "$options": "i" }
-                                            }
-                                }
-                            }')
-    match <- str_interp('{ "$match": ${query} }')
-    project1 <- str_interp('{
+                                            ')
+    query_tags <- str_interp(',
+                                            "Tags" : {"$all": ${tags_filter}}')
+
+    query_end <- str_interp('}}}')
+
+    project_start <- str_interp('{
                                 "$project" :
                                     {"data" :
                                         {"$filter":
@@ -22,15 +27,39 @@ search_mol_by_min_conc <- function(db, molecule, min_conc, with_samples = FALSE)
                                                 "$data",
                                                 "cond":
                                                     {"$and": [
-                                                        {"$gt":["$$this.Concentration",${min_conc}]},
-                                                        {"$in" : ["$$this.Molecule", ${molecule_filter}  ]}
-                                                    ]}
+                                                        {"$gt":[ "$$this.Concentration",${min_conc} ]},
+                                                        {"$lt":[ "$$this.Concentration",${max_conc} ]},
+                                                        {"$in" : [ "$$this.Molecule", ${molecule_filter} ]}
+        ')
+    tag_search <- str_interp(',
+                                                        {"$and" :
+                                                            {"$map" : {
+                                                                "input" : ${tags_filter},
+                                                                "as" : "x",
+                                                                "in" : {"$in" : ["$$x", "$$this.Tags"] }
+                                                            }
+                                                            }
+                                                        }')
+
+    project_end <- str_interp(']}
                                             }
                                         },
                                     "xml" : "$name",
                                     "date_created" : 1
                                     }
                         }')
+
+    if (is.null(tags)) {
+
+        project1 <- paste0(project_start, project_end)
+        query <- paste0(query_start, query_end)
+    } else {
+        project1 <- paste0(project_start, tag_search, project_end)
+        query <- paste0(query_start, query_tags, query_end)
+    }
+
+    match <- str_interp('{ "$match": ${query} }')
+
 
     unwind <- str_interp('{ "$unwind" : "$data"}')
     project2 <- str_interp('{
@@ -55,6 +84,7 @@ search_mol_by_min_conc <- function(db, molecule, min_conc, with_samples = FALSE)
                                 "mean": {"$avg": "$data.Concentration"}
                             }
                         }')
+
     if (with_samples) {
         res <- aggregate_pipeline(db, match, project1, unwind, project2)
     } else {
