@@ -18,9 +18,9 @@ extract_ms_data <- function(xml) {
                    dmy_hms(tz = "America/Montreal")) %>%
         mutate(
             Tags = str_split(desc, ", "),
-            Strain = str_extract(name, "^\\w+?(?=_)"),
-            Plasmid = str_extract(name, "PLAS-[\\d]+"),
-            Identifier = str_extract(name, "(?<=_)[^_]\\w+(?=_\\d+(_G-\\d+)?$)")
+            Strain = str_extract(name, "(?i)^HB\\w+?(?=_)") %>% toupper(),
+            Plasmid = str_extract(name, "(?i)PLAS-[\\d]+") %>% toupper(),
+            Identifier = str_extract(name, "(?i)(?<=^HB\\d{1,10}_)[^_]\\w+(?=_\\d+(_G-\\d+)?$)")
         ) %>%
         select(Name = name,type, sampleid = id, Strain, Plasmid, Identifier, Tags, Time)
 

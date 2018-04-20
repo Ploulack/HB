@@ -96,17 +96,19 @@ search_server <- function(input, output, session) {
     outputOptions(output, "total_samples", suspendWhenHidden = FALSE)
 
     observeEvent(input$display_samples, {
-        res <- search_mol_by_min_conc(db = ms_db,
+
+        res <- search_mol_by_min_conc(
+            db = ms_db,
             molecule = input$search_molecules,
             min_conc = input$min_concentration,
             max_conc = input$max_concentration,
             tags = input$tags,
-            with_samples = TRUE)
+            with_samples = TRUE
+            )
+
         results$with_samples <- bind_cols(
-            res %>%
-                select(-data),
-            res$data
-        ) %>%
+            select(res, -data),
+            res$data) %>%
             as_tibble()
     }, priority = 10)
 

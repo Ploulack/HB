@@ -3,10 +3,9 @@ source("helpers/mongo_helpers.R")
 
 search_mol_by_min_conc <- function(db, molecule, min_conc, max_conc, tags, with_samples = FALSE) {
     molecule_filter <- c(molecule, toupper(molecule)) %>%
-            jsonlite::toJSON(pretty = TRUE)
+        jsonlite::toJSON(pretty = TRUE)
     tags_filter <- tags %>%
         jsonlite::toJSON()
-
 
     query_start <- str_interp('{
                                 "data": { "$elemMatch" :

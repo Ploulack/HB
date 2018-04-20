@@ -1,5 +1,15 @@
 #### NOT UP TO DATE STRATEGY FOR TEXT INDEX STILL UNCLEAR April 5th ####
 #### NEXT ####
+
+
+
+
+
+
+
+#### OLD ####
+
+#### Creat View for Tags ####
 db.runCommand({create : "tags_view", viewOn: "ms",
     pipeline: [
            {
@@ -41,18 +51,6 @@ db.runCommand({create : "tags_view", viewOn: "ms",
         ]
 })
 
-
-
-
-
-
-
-#### OLD ####
-
-Notes for PROD:
-add index on tag:
-db_ms$index('{"data.Tags" : 1}')
-db_ms$index('{"data.Name" : "text", "data.Molecule" : "text" }')
 
 
 db_ms$find('{"data.Strain" : "HB189"}', '{"name" : 1, "data" : {"$slice" : 1}}')
