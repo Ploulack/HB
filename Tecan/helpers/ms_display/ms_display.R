@@ -1,48 +1,4 @@
 
-# Notes:
-# sample name: name <> Name, Concentration, Molecule
-
-
-# ms_data_display_ui_sidebar <- function(id) {
-#         ns <- NS(id)
-#     source(file = "helpers/delete_file_button_module.R")
-#     source("helpers/ui_generics/select_file_ui.R")
-#
-#     fluidPage(
-#         sidebarPanel(width = 3,
-#                      checkboxGroupInput(inputId = ns("molecules"),
-#                                         label = "Molecules",
-#                                         choices = "Waiting for server..."),
-#                      checkboxInput(inputId = ns("select_all"),
-#                                    label = "Select samples with a reading",
-#                                    value = FALSE),
-#                      checkboxGroupInput(inputId = ns("samples"),
-#                                         label = "Samples",
-#                                         choices = "Waiting for server..."
-#                      )
-#         ),
-#         mainPanel(
-#             htmlOutput(outputId = ns("x_value")),
-#             checkboxInput(ns("log_scale"),
-#                           label = "Switch to log scale"),
-#             plotOutput(ns("bar"),
-#                        click = ns("click")
-#                        # hover = hoverOpts(id = ns("hover"),
-#                        #                   delayType = "debounce", delay = 300)
-#             ),
-#             fluidRow(
-#                 column(3,checkboxInput(inputId = ns("display_raw"),
-#                                        label = "Display unaggregated data")
-#                 ),
-#                 column(3, downloadLink(outputId = ns("save_csv"),
-#                                        label = "Download data as csv")
-#                 )
-#             ),
-#             tableOutput(ns("table"))
-#         )
-#     )
-# }
-
 ms_data_display_ui_sidebar <- function(id) {
     ns <- NS(id)
     source(file = "helpers/delete_file_button_module.R")
@@ -53,9 +9,14 @@ ms_data_display_ui_sidebar <- function(id) {
         checkboxGroupInput(inputId = ns("molecules"),
                            label = "Molecules",
                            choices = "Waiting for server..."),
+        tags$hr(),
         checkboxInput(inputId = ns("select_all"),
                       label = "Select samples with a reading",
                       value = FALSE),
+        uiOutput(ns("blanks_option")),
+        actionButton(inputId = ns("unselect"),
+                     label = "Unselect"),
+        tags$hr(),
         checkboxGroupInput(inputId = ns("samples"),
                            label = "Samples",
                            choices = "Waiting for server..."
@@ -90,13 +51,33 @@ ms_data_display_server <- function(input, output, session,
                                    go_button,
                                    ms_tbl,
                                    type = c("ms", "search")) {
-
+ns <- session$ns
     stored_choices <- reactiveVal(NULL)
     display_tbl <- reactiveVal()
     last_click <- reactiveVal(NULL)
 
-    observeEvent(go_button(), {
+    output$blanks_option <- renderUI({
+        if (type == "ms") {
+        checkboxInput(inputId = ns("show_blanks"),
+                      label = "Display blanks",
+                      value = FALSE)
+        }
+    })
 
+    ms_data <- eventReactive(c(go_button(), input$show_blanks), {
+        if (is.null(ms_tbl())) return()
+browser()
+        if (type == "search" || (input$show_blanks %||% FALSE)) {
+            ms_tbl()
+        }
+        else {
+            ms_tbl() %>% filter(type == "Analyte")
+        }
+    })
+
+    observeEvent(c(go_button(), input$show_blanks), {
+
+        if (is.null(ms_data())) return()
         #Reset stored choices
         stored_choices(NULL)
 
@@ -105,11 +86,11 @@ ms_data_display_server <- function(input, output, session,
 
         updateCheckboxGroupInput(session = session,
                                  inputId = "samples",
-                                 choices = unique(ms_tbl()$Name),
-                                 selected = unique(ms_tbl()$Name)[1]
+                                 choices = unique(ms_data()$Name),
+                                 selected = unique(ms_data()$Name)[1]
         )
 
-        molecules <- unique(ms_tbl()$Molecule)
+        molecules <- unique(ms_data()$Molecule)
         updateCheckboxGroupInput(session = session,
                                  inputId = "molecules",
                                  choices = molecules,
@@ -122,7 +103,7 @@ ms_data_display_server <- function(input, output, session,
         if (input$select_all) {
             stored_choices(input$samples)
 
-            non_0_conc_choices <- ms_tbl() %>%
+            non_0_conc_choices <- ms_data() %>%
                 filter(Molecule %in% input$molecules,
                        Concentration > 0) %>%
                 pull(Name) %>%
@@ -142,7 +123,7 @@ ms_data_display_server <- function(input, output, session,
     unaggregated_tbl <- reactive({
         if (any(is.null(c(input$samples, input$molecules)))) return()
 
-        res_tbl <- ms_tbl() %>%
+        res_tbl <- ms_data() %>%
             select(c(Name, Molecule, Concentration)) %>%
             group_by(Name, Molecule) %>%
             arrange(Name) %>%
@@ -247,7 +228,7 @@ ms_data_display_server <- function(input, output, session,
                                              size = 10,
                                              face = if_else(display_tbl()$cut_off,"bold", "plain"))) +
             scale_y_continuous(trans = barplot_scale()) +
-            scale_fill_discrete(limits = levels(ms_tbl()$Molecule)) +
+            scale_fill_discrete(limits = levels(ms_data()$Molecule)) +
             scale_alpha_discrete(drop = FALSE, guide = "none")
 
         if (!is.null(clicked_sample()$value)) {
@@ -285,7 +266,7 @@ ms_data_display_server <- function(input, output, session,
         },
         content = function(file) {
             write_csv(
-                ms_tbl() %>%
+                ms_data() %>%
                     select(Name, Molecule, Concentration),
                 file,
                 na = "0")

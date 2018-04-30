@@ -23,7 +23,7 @@ extract_ms_data <- function(xml) {
             Identifier = str_extract(name, "(?i)(?<=^HB\\d{1,10}_)[^_]\\w+(?=_\\d+(_G-\\d+)?$)")
         ) %>%
         select(Name = name,type, sampleid = id, Strain, Plasmid, Identifier, Tags, Time)
-
+browser()
     samples %>%
         xml_nodes("COMPOUND") %>%
         map(xml_attrs) %>%
@@ -39,6 +39,5 @@ extract_ms_data <- function(xml) {
         mutate(Concentration = as.double(Concentration),
                Molecule = as.factor(Molecule)) %>%
         left_join(samples_info, by = "sampleid") %>%
-        filter(tolower(type) == "analyte") %>%
-        select(-type)
+        filter(tolower(type) %in% c("analyte", "blank"))
 }

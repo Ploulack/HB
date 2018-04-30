@@ -110,7 +110,8 @@ search_server <- function(input, output, session) {
             select(res, -data),
             res$data) %>%
             as_tibble()
-    }, priority = 10)
+
+    },priority = 10)
 
     callModule(module = ms_data_display_server,
         id = "search",

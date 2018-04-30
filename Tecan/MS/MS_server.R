@@ -2,10 +2,15 @@ library(shiny); library(rvest)
 library(purrrlyr);
 
 ms_server <- function(input, output, session) {
-    source("ms/ms_extract.R"); source("ms/ms_functions.R")
-    source("registry/registry_helpers.R"); source("helpers/strings.R")
-    source("helpers/plates_helpers.R"); source("mongo/tags.R")
-    source("ms/ms_csv.R")
+    c( "ms/ms_extract.R",
+        "ms/ms_functions.R",
+        "registry/registry_helpers.R",
+        "helpers/strings.R",
+        "helpers/plates_helpers.R",
+        "mongo/tags.R",
+        "ms/ms_csv.R",
+        "helpers/ms_display/ms_display.R") %>%
+        walk(source)
 
     options(shiny.trace = FALSE)
     user <- drive_user()$displayName
@@ -222,7 +227,7 @@ ms_server <- function(input, output, session) {
                 str_remove("[\\n|\\s]+\\]")
 
 
-            ms_dat_json <- jsonlite::toJSON(x = ms$tbl(),
+            ms_dat_json <- jsonlite::toJSON(x = ms$tbl() %>% filter(type == "blank"),
                                             dataframe = "rows",
                                             POSIXt = "mongo",
                                             pretty = TRUE)
@@ -242,222 +247,231 @@ ms_server <- function(input, output, session) {
 
     #### MS DATA DIPLAY ####
 
-    stored_choices <- reactiveVal(NULL)
-    display_tbl <- reactiveVal()
-    last_click <- reactiveVal(NULL)
+    callModule(module = ms_data_display_server,
+        id = "ms",
+        session = session,
+        go_button = ms$go_file,
+        ms_tbl = ms$tbl,
+        type = "ms")
 
-    observeEvent(ms$go_file(), {
-        #Reset stored choices
-        stored_choices(NULL)
-
-        #Reset the select all button
-        updateCheckboxInput(session, "select_all", value = FALSE)
-
-        updateCheckboxGroupInput(session = session,
-                                 inputId = "samples",
-                                 choices = unique(ms$tbl()$Name),
-                                 selected = unique(ms$tbl()$Name)[1]
-        )
-        updateCheckboxGroupInput(session = session,
-                                 inputId = "molecules",
-                                 choices = unique(ms$tbl()$Molecule),
-                                 selected = unique(ms$tbl()$Molecule)
-        )
-
-    })
-
-
-    observeEvent(input$select_all, {
-
-        if (input$select_all) {
-            stored_choices(input$samples)
-
-
-            non_0_conc_choices <- ms$tbl() %>%
-                filter(Molecule %in% input$molecules,
-                       Concentration > 0) %>%
-                pull(Name) %>%
-                unique()
-
-            updateCheckboxGroupInput(session = session,
-                                     inputId = "samples",
-                                     selected = non_0_conc_choices)
-
-        } else if (!is.null(stored_choices())) {
-            updateCheckboxGroupInput(session = session,
-                                     inputId = "samples",
-                                     selected = stored_choices())
-        }
-    }, ignoreInit = TRUE)
-
-    unaggregated_tbl <- reactive({
-        if (any(is.null(c(input$samples, input$molecules)))) return()
-
-        res_tbl <- ms$tbl() %>%
-            select(c(Name, Molecule, Concentration)) %>%
-            group_by(Name, Molecule) %>%
-            arrange(Name) %>%
-            filter(Name %in% input$samples) %>%
-            filter(Molecule %in% input$molecules)
-
-        return(res_tbl)
-    })
-
-    observeEvent(unaggregated_tbl(), {
-        display_tbl(unaggregated_tbl() %>%
-                        summarise(sd = sd(Concentration),
-                                  Mean = mean(Concentration)) %>%
-                        ungroup() %>%
-                        mutate(cut_off = TRUE)
-        )
-    }, priority = -1)
-
-
-    observeEvent(input$click, {
-        if (!is.null(input$click)) last_click(input$click)
-    })
-
-    #On file change reset the value selection from click
-    observeEvent(ms$go_file(), {
-        last_click(NULL)
-    })
-
-    clicked_sample <- eventReactive(last_click(), {
-
-        if (is.null(last_click())) return(NULL)
-
-        click_x <- last_click()$x
-        n_molecules <- length(input$molecules)
-        splits <- seq(1/(2 * n_molecules), 1 - 1/(2 * n_molecules), 1/n_molecules)
-
-        sample_lvls <- display_tbl()$Name %>%
-            as_factor() %>%
-            levels()
-        name <- sample_lvls[round(click_x)]
-
-        molecule_lvls <- display_tbl()$Molecule %>%
-            as_factor() %>%
-            droplevels() %>%
-            levels()
-
-        x <- click_x - round(click_x) + 1/2
-
-        molecule_name <- molecule_lvls[which.min(abs(splits - x))]
-
-        value <- display_tbl() %>%
-            filter(Molecule == molecule_name & Name == name) %>%
-            pull(Mean)
-
-        list(name = name,
-             molecule = molecule_name,
-             value = value)
-
-    }, ignoreNULL = FALSE)
-
-    observeEvent(clicked_sample(), {
-
-        if (is.null(clicked_sample()$value)) {
-            display_tbl(
-                display_tbl() %>%
-                    mutate(cut_off = TRUE)
-            )
-        } else {
-
-            display_tbl(
-                display_tbl() %>%
-                    mutate(cut_off = if_else(
-                        Mean >= clicked_sample()$value,
-                        TRUE,
-                        FALSE,
-                        missing = FALSE)
-                    )
-            )
-        }
-    })
-
-    file_title <- renderText({
-        validate(
-            need(ms$tbl(), message = "no ms data")
-        )
-
-        molecules <- ms$tbl()$Molecule %>%
-            unique() %>%
-            str_c(collapse = " ")
-
-        date_range <- min(ms$tbl()$Time,na.rm = TRUE) %>%
-            paste(
-                max(ms$tbl()$Time,na.rm = TRUE) %>%
-                    (function(x) {paste(hour(x), minute(x), second(x), sep = ":")})
-            )
-
-        paste0(molecules, " ~ ", date_range)
-    })
-
-
-
-    barplot_scale <- reactive({
-        ifelse(input$log_scale, "log1p", "identity")
-    })
-
-    output$bar <- renderPlot({
-        if (is.null(display_tbl()) || nrow(display_tbl()) == 0) return()
-
-        g <- ggplot(display_tbl()) +
-            aes(x = Name, y = Mean, fill = Molecule) +
-            geom_bar(position = "dodge",
-                     stat = "identity",
-                     aes(alpha = cut_off %>%
-                             factor(levels = c(FALSE, TRUE))
-                     )
-            ) +
-            geom_errorbar(position = position_dodge(.9),
-                          aes(ymax = Mean + sd,
-                              ymin = Mean - sd,
-                              width = .15)) +
-            theme(axis.text.x = element_text(angle = 60,
-                                             hjust = .8,
-                                             size = 10,
-                                             face = if_else(display_tbl()$cut_off,"bold", "plain"))) +
-            scale_y_continuous(trans = barplot_scale()) +
-            scale_fill_discrete(limits = levels(ms$tbl()$Molecule)) +
-            scale_alpha_discrete(drop = FALSE, guide = "none")
-
-        if (!is.null(clicked_sample()$value)) {
-            g + geom_hline(yintercept = clicked_sample()$value)
-        } else {
-            g
-        }
-
-
-    })
-
-    output$table <- renderTable({
-        if (input$display_raw) {
-            unaggregated_tbl()
-        }  else display_tbl()
-    })
-
-
-    # Print the name of the x value
-    output$x_value <- renderText({
-        if (is.null(clicked_sample())) return()
-        else {
-            HTML("You've selected sample <code>", clicked_sample()$name, "</code>",
-                 "<br>and molecule <code>", clicked_sample()$molecule,"</code>",
-                 "<br>of value <code>", round(clicked_sample()$value,2), "</code>")
-        }
-    })
-
-    output$save_csv <- downloadHandler(
-        filename = function() {
-            paste0(ms$file_dribble()$name, ".csv")
-        },
-        content = function(file) {
-            write_csv(
-                ms$tbl() %>%
-                    select(Name, Molecule, Concentration),
-                file,
-                na = "0")
-        }
-    )
+    #
+    #
+    # stored_choices <- reactiveVal(NULL)
+    # display_tbl <- reactiveVal()
+    # last_click <- reactiveVal(NULL)
+    #
+    # observeEvent(ms$go_file(), {
+    #     #Reset stored choices
+    #     stored_choices(NULL)
+    #
+    #     #Reset the select all button
+    #     updateCheckboxInput(session, "select_all", value = FALSE)
+    #
+    #     updateCheckboxGroupInput(session = session,
+    #                              inputId = "samples",
+    #                              choices = unique(ms$tbl()$Name),
+    #                              selected = unique(ms$tbl()$Name)[1]
+    #     )
+    #     updateCheckboxGroupInput(session = session,
+    #                              inputId = "molecules",
+    #                              choices = unique(ms$tbl()$Molecule),
+    #                              selected = unique(ms$tbl()$Molecule)
+    #     )
+    #
+    # })
+    #
+    #
+    # observeEvent(input$select_all, {
+    #
+    #     if (input$select_all) {
+    #         stored_choices(input$samples)
+    #
+    #
+    #         non_0_conc_choices <- ms$tbl() %>%
+    #             filter(Molecule %in% input$molecules,
+    #                    Concentration > 0) %>%
+    #             pull(Name) %>%
+    #             unique()
+    #
+    #         updateCheckboxGroupInput(session = session,
+    #                                  inputId = "samples",
+    #                                  selected = non_0_conc_choices)
+    #
+    #     } else if (!is.null(stored_choices())) {
+    #         updateCheckboxGroupInput(session = session,
+    #                                  inputId = "samples",
+    #                                  selected = stored_choices())
+    #     }
+    # }, ignoreInit = TRUE)
+    #
+    # unaggregated_tbl <- reactive({
+    #     if (any(is.null(c(input$samples, input$molecules)))) return()
+    #
+    #     res_tbl <- ms$tbl() %>%
+    #         select(c(Name, Molecule, Concentration)) %>%
+    #         group_by(Name, Molecule) %>%
+    #         arrange(Name) %>%
+    #         filter(Name %in% input$samples) %>%
+    #         filter(Molecule %in% input$molecules)
+    #
+    #     return(res_tbl)
+    # })
+    #
+    # observeEvent(unaggregated_tbl(), {
+    #     display_tbl(unaggregated_tbl() %>%
+    #                     summarise(sd = sd(Concentration),
+    #                               Mean = mean(Concentration)) %>%
+    #                     ungroup() %>%
+    #                     mutate(cut_off = TRUE)
+    #     )
+    # }, priority = -1)
+    #
+    #
+    # observeEvent(input$click, {
+    #     if (!is.null(input$click)) last_click(input$click)
+    # })
+    #
+    # #On file change reset the value selection from click
+    # observeEvent(ms$go_file(), {
+    #     last_click(NULL)
+    # })
+    #
+    # clicked_sample <- eventReactive(last_click(), {
+    #
+    #     if (is.null(last_click())) return(NULL)
+    #
+    #     click_x <- last_click()$x
+    #     n_molecules <- length(input$molecules)
+    #     splits <- seq(1/(2 * n_molecules), 1 - 1/(2 * n_molecules), 1/n_molecules)
+    #
+    #     sample_lvls <- display_tbl()$Name %>%
+    #         as_factor() %>%
+    #         levels()
+    #     name <- sample_lvls[round(click_x)]
+    #
+    #     molecule_lvls <- display_tbl()$Molecule %>%
+    #         as_factor() %>%
+    #         droplevels() %>%
+    #         levels()
+    #
+    #     x <- click_x - round(click_x) + 1/2
+    #
+    #     molecule_name <- molecule_lvls[which.min(abs(splits - x))]
+    #
+    #     value <- display_tbl() %>%
+    #         filter(Molecule == molecule_name & Name == name) %>%
+    #         pull(Mean)
+    #
+    #     list(name = name,
+    #          molecule = molecule_name,
+    #          value = value)
+    #
+    # }, ignoreNULL = FALSE)
+    #
+    # observeEvent(clicked_sample(), {
+    #
+    #     if (is.null(clicked_sample()$value)) {
+    #         display_tbl(
+    #             display_tbl() %>%
+    #                 mutate(cut_off = TRUE)
+    #         )
+    #     } else {
+    #
+    #         display_tbl(
+    #             display_tbl() %>%
+    #                 mutate(cut_off = if_else(
+    #                     Mean >= clicked_sample()$value,
+    #                     TRUE,
+    #                     FALSE,
+    #                     missing = FALSE)
+    #                 )
+    #         )
+    #     }
+    # })
+    #
+    # file_title <- renderText({
+    #     validate(
+    #         need(ms$tbl(), message = "no ms data")
+    #     )
+    #
+    #     molecules <- ms$tbl()$Molecule %>%
+    #         unique() %>%
+    #         str_c(collapse = " ")
+    #
+    #     date_range <- min(ms$tbl()$Time,na.rm = TRUE) %>%
+    #         paste(
+    #             max(ms$tbl()$Time,na.rm = TRUE) %>%
+    #                 (function(x) {paste(hour(x), minute(x), second(x), sep = ":")})
+    #         )
+    #
+    #     paste0(molecules, " ~ ", date_range)
+    # })
+    #
+    #
+    #
+    # barplot_scale <- reactive({
+    #     ifelse(input$log_scale, "log1p", "identity")
+    # })
+    #
+    # output$bar <- renderPlot({
+    #     if (is.null(display_tbl()) || nrow(display_tbl()) == 0) return()
+    #
+    #     g <- ggplot(display_tbl()) +
+    #         aes(x = Name, y = Mean, fill = Molecule) +
+    #         geom_bar(position = "dodge",
+    #                  stat = "identity",
+    #                  aes(alpha = cut_off %>%
+    #                          factor(levels = c(FALSE, TRUE))
+    #                  )
+    #         ) +
+    #         geom_errorbar(position = position_dodge(.9),
+    #                       aes(ymax = Mean + sd,
+    #                           ymin = Mean - sd,
+    #                           width = .15)) +
+    #         theme(axis.text.x = element_text(angle = 60,
+    #                                          hjust = .8,
+    #                                          size = 10,
+    #                                          face = if_else(display_tbl()$cut_off,"bold", "plain"))) +
+    #         scale_y_continuous(trans = barplot_scale()) +
+    #         scale_fill_discrete(limits = levels(ms$tbl()$Molecule)) +
+    #         scale_alpha_discrete(drop = FALSE, guide = "none")
+    #
+    #     if (!is.null(clicked_sample()$value)) {
+    #         g + geom_hline(yintercept = clicked_sample()$value)
+    #     } else {
+    #         g
+    #     }
+    #
+    #
+    # })
+    #
+    # output$table <- renderTable({
+    #     if (input$display_raw) {
+    #         unaggregated_tbl()
+    #     }  else display_tbl()
+    # })
+    #
+    #
+    # # Print the name of the x value
+    # output$x_value <- renderText({
+    #     if (is.null(clicked_sample())) return()
+    #     else {
+    #         HTML("You've selected sample <code>", clicked_sample()$name, "</code>",
+    #              "<br>and molecule <code>", clicked_sample()$molecule,"</code>",
+    #              "<br>of value <code>", round(clicked_sample()$value,2), "</code>")
+    #     }
+    # })
+    #
+    # output$save_csv <- downloadHandler(
+    #     filename = function() {
+    #         paste0(ms$file_dribble()$name, ".csv")
+    #     },
+    #     content = function(file) {
+    #         write_csv(
+    #             ms$tbl() %>%
+    #                 select(Name, Molecule, Concentration),
+    #             file,
+    #             na = "0")
+    #     }
+    # )
 }
