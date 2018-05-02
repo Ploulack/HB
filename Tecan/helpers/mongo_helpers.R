@@ -14,6 +14,9 @@ mongo_file_entry <- function(db, file, type = "tecan") {
 
     entry_exists <- !length(entry) == 0
 
+    if (entry_exists) cat(file = stderr(), "Entry found. For type ", type, " and file ", file)
+    else cat(file = stderr(), " No entry found. For type ", type, " and file ", file)
+
     return(list(
         "entry_exists" = entry_exists,
         "entry" = entry,
@@ -28,15 +31,29 @@ mongo_update_file <- function(db, file, upd_str, type = "tecan", notif_msg = NUL
 
     query <- str_interp('{"${key}" : "${file}" }')
     update_log <- db$update(query, upd_str, upsert = TRUE)
-    if (!is.null(notif_msg))
-        showNotification(ui = notif_msg,
-                         duration = 3,
-                         type = "message")
+    browser()
+    if (
+        (type == "tecan" &&
+         (update_log$upsertedId %>% is_character() && str_length(update_log$upsertedId) > 10)
+         ||
+         (update_log$modifiedCount == 1 && update_log$matchedCount == 1)
+         ) ||
+        type == "ms"
+        ) {
+        if (!is.null(notif_msg))
+            showNotification(ui = notif_msg,
+                             duration = 3,
+                             type = "message")
+    } else {
+        showNotification(ui = "DB entry failed",
+                             duration = 3,
+                             type = "message")
+    }
 
     update_log
 }
 
-mongo_add_protocol <- function(db, file_id, experiment) {
+mongo_add_protocol <- function(db, file_id, experiment, type) {
 
     user <- drive_user()
     query <- str_interp('{"$set":
@@ -48,7 +65,7 @@ mongo_add_protocol <- function(db, file_id, experiment) {
     mongo_update_file(db = db,
                       file = file_id,
                       upd_str = query,
-                      type = "ms"
+                      type = type
     )
 }
 

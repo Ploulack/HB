@@ -66,7 +66,7 @@ ns <- session$ns
 
     ms_data <- eventReactive(c(go_button(), input$show_blanks), {
         if (is.null(ms_tbl())) return()
-browser()
+
         if (type == "search" || (input$show_blanks %||% FALSE)) {
             ms_tbl()
         }
@@ -119,6 +119,15 @@ browser()
                                      selected = stored_choices())
         }
     }, ignoreInit = TRUE)
+
+    # remove any sample selection
+    observeEvent(input$unselect, {
+        stored_choices(NULL)
+
+        updateCheckboxGroupInput(session = session,
+                                 inputId = "samples",
+                                 selected = "")
+    })
 
     unaggregated_tbl <- reactive({
         if (any(is.null(c(input$samples, input$molecules)))) return()

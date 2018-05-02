@@ -7,6 +7,37 @@ extract_ms <- function(input_file, dribble) {#Are we using that dribble at all?
         extract_ms_data()
 }
 
+substract_blanks <- function(res) {
+
+    n_molecules <- res %>%
+        distinct(Molecule) %>%
+        nrow()
+
+    blanks_1 <- res %>%
+        slice(1:n_molecules) %>%
+        arrange(Molecule)
+
+    blanks <- res %>%
+        slice((n_molecules + 1):n()) %>%
+        filter(type == "Blank") %>%
+        group_by(Molecule) %>%
+        summarise(Concentration = mean(Concentration)) %>%
+        arrange(Molecule)
+
+    blank <- blanks_1 %>%
+        mutate(Concentration = if_else(Concentration == 0, blanks$Concentration, Concentration))
+
+    map2_dfr(blank$Molecule, blank$Concentration, ~{
+        res %>%
+            filter(type == "Analyte") %>%
+            filter(Molecule == .x) %>%
+            mutate(Concentration = if_else( (Concentration - .y) < 0, 0, Concentration - .y))
+    }) %>%
+        bind_rows(res %>% filter(!type == "Analyte")) %>%
+        arrange(as.integer(sampleid))
+
+}
+
 extract_ms_data <- function(xml) {
     samples <- xml %>%
         xml_nodes("SAMPLE")
@@ -39,5 +70,6 @@ browser()
         mutate(Concentration = as.double(Concentration),
                Molecule = as.factor(Molecule)) %>%
         left_join(samples_info, by = "sampleid") %>%
+        substract_blanks() %>%
         filter(tolower(type) %in% c("analyte", "blank"))
 }

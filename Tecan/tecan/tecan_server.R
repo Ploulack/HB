@@ -32,7 +32,6 @@ tecan_server <- function(input, output, session) {
                               selected = selected
         )
 
-
         tecan_n$raw <- reactiveVal(NULL)
         tecan_n$experiment <- reactiveVal(NULL)
         tecan_n$calculated <- reactiveVal(NULL)
@@ -171,10 +170,6 @@ tecan_server <- function(input, output, session) {
         #TODO: could use attribute??
         note_had_characters <- reactiveVal(FALSE)
 
-        #This handles the sample taggings tecan file types that require it before db writing
-        # tecan_file$samples <-  experiment$raw$data$Batch_1$Measures$Sample
-        # tecan_file$measures <-  experiment$raw$data$Batch_1$Measures
-
         observeEvent(tecan_n$go_file(), {
                 shiny::validate(need(!is.null(registry) &&
                                              !is.null(tecan_n$raw()$data$Batch_1$Measures$Sample ) &&
@@ -257,7 +252,6 @@ tecan_server <- function(input, output, session) {
                     tecan_n$raw()$user_msg == "")
                         # for each sample, display the widget
                         walk2(samples()$Sample,samples()$Key, ~ {
-                                # removeUI(selector = paste0("#", ns(.x)))
 
                                 control_samples[[.x]] <- callModule(module = sample_widget,
                                                                     id = paste0(input$file, "-", .x),

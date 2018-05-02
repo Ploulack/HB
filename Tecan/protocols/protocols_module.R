@@ -37,7 +37,7 @@ protocols_handler <- function(input,
                         selected(update_selected("Unitary", file_container$id()))
 
                         progress_prot_change$inc(.5, str_interp("Adding ${unitary_folder} info to db entry."))
-                        mongo_add_protocol(db, file_container$id(), "Unitary")
+                        mongo_add_protocol(db, file_container$id(), "Unitary", type = tab_name) #PB NOT PASSING THE TYPE HERE
 
                         progress_prot_change$close()
                 } else {
@@ -93,7 +93,7 @@ protocols_handler <- function(input,
                 assert_is_not_null(selected_prot[[processed_plates]], severity = "stop")
 
                 #Add protocol info to db entry
-                mongo_add_protocol(db, file_container$id(), input$set_protocol)
+                mongo_add_protocol(db, file_container$id(), input$set_protocol, type = tab_name)
 
                 #Update protocols gsheet with new plate
                 #Add new plate to string
