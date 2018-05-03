@@ -31,7 +31,7 @@ mongo_update_file <- function(db, file, upd_str, type = "tecan", notif_msg = NUL
 
     query <- str_interp('{"${key}" : "${file}" }')
     update_log <- db$update(query, upd_str, upsert = TRUE)
-    browser()
+
     if (
         (type == "tecan" &&
          (update_log$upsertedId %>% is_character() && str_length(update_log$upsertedId) > 10)

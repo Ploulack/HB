@@ -103,7 +103,7 @@ sample_widget_ui <- function(id, sample_well, sample_key, tecan_n, registry) {
                              inputId = ns("well_key"),
                              label = str_interp("Sample ${sample_well}"),
                              choices = registry$KEY  %>%
-                                 prepend(c("", "Water")),
+                                 prepend(c("", "Water", "NA")),
                              selected = sample_key,
                              multiple = FALSE)
                   )
@@ -120,25 +120,25 @@ sample_widget_ui <- function(id, sample_well, sample_key, tecan_n, registry) {
     }
 }
 
-sample_widget <- function(input, output, session, sample_well, sample_key, samples, tecan_n, db, registry, go_file) {
+sample_widget <- function(input, output, session, sample_well, sample_key, samples, file_id, type, db, registry, go_file) {
     ns <- session$ns
 
     # Slow text input value update
     reactive_key <- reactive({input$well_key})
-    delay <- ifelse(tecan_n$raw()$type == tecan_protocols_with_db[2], 1500, 0)
+    delay <- ifelse(type == tecan_protocols_with_db[2], 1500, 0)
     input_key <- debounce(reactive_key, delay)
 
     observeEvent(input_key(), {
         if (is.null(input_key()) || input_key() == "") return()
         if (input_key() != samples()$Key[samples()$Sample == sample_well]) {
             #Update db entry
-            str1 <- str_interp('{ "file" : "${tecan_n$id()}", "samples.Sample" : "${sample_well}"}')
+            str1 <- str_interp('{ "file" : "${file_id}", "samples.Sample" : "${sample_well}"}')
             str2 <- str_interp('{"$set" : {"samples.$.Key" : "${input_key()}"}}')
             upd_check <- db$update(str1, str2)
-            print (
-                str_interp("Tagging sample ${sample_well} using file id : ${tecan_n$id()}")
+            print(
+                str_interp("Tagging sample ${sample_well} using file id : ${file_id}.")
             )
-            browser()
+
             if (upd_check$modifiedCount == 1) {
                 disp_msg <- str_interp("Updated ${sample_well} with ${input_key()}")
 

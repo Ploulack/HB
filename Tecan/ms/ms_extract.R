@@ -19,21 +19,25 @@ substract_blanks <- function(res) {
 
     blanks <- res %>%
         slice((n_molecules + 1):n()) %>%
-        filter(type == "Blank") %>%
+        filter(str_detect(type, "(?i)Blank")) %>%
         group_by(Molecule) %>%
-        summarise(Concentration = mean(Concentration)) %>%
+        summarise(Concentration = if_else(
+             mean(Concentration, na.rm = TRUE) %>% is.nan(),
+             0,
+             mean(Concentration, na.rm = TRUE)
+             )) %>%
         arrange(Molecule)
 
     blank <- blanks_1 %>%
-        mutate(Concentration = if_else(Concentration == 0, blanks$Concentration, Concentration))
+        mutate(Concentration = if_else(Concentration == 0 | is.na(Concentration), blanks$Concentration, Concentration))
 
     map2_dfr(blank$Molecule, blank$Concentration, ~{
         res %>%
-            filter(type == "Analyte") %>%
+            filter(str_detect(type, "(?i)Analyte")) %>%
             filter(Molecule == .x) %>%
             mutate(Concentration = if_else( (Concentration - .y) < 0, 0, Concentration - .y))
     }) %>%
-        bind_rows(res %>% filter(!type == "Analyte")) %>%
+        bind_rows(res %>% filter(!str_detect(type, "(?i)Analyte"))) %>%
         arrange(as.integer(sampleid))
 
 }
@@ -54,7 +58,7 @@ extract_ms_data <- function(xml) {
             Identifier = str_extract(name, "(?i)(?<=^HB\\d{1,10}_)[^_]\\w+(?=_\\d+(_G-\\d+)?$)")
         ) %>%
         select(Name = name,type, sampleid = id, Strain, Plasmid, Identifier, Tags, Time)
-browser()
+
     samples %>%
         xml_nodes("COMPOUND") %>%
         map(xml_attrs) %>%

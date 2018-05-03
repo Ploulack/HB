@@ -37,7 +37,7 @@ protocols_handler <- function(input,
                         selected(update_selected("Unitary", file_container$id()))
 
                         progress_prot_change$inc(.5, str_interp("Adding ${unitary_folder} info to db entry."))
-                        mongo_add_protocol(db, file_container$id(), "Unitary", type = tab_name) #PB NOT PASSING THE TYPE HERE
+                        mongo_add_protocol(db, file_container$id(), "Unitary", type = tab_name)
 
                         progress_prot_change$close()
                 } else {

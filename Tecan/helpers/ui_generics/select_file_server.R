@@ -10,6 +10,10 @@ select_file <- function(input,
     #This is to dynamically get the correct column name of the protocols experiment sheet
     tab_name <-  str_extract(session$ns(""), "^\\w+")
 
+    #### DEBUG ####
+    observeEvent(input$file, {
+        cat("input file id ", input$file, "\n")
+    })
 
     #build the protocol tibble from the spread sheet
     #TODO: keep a local version and only update...(or full switch to mongo)

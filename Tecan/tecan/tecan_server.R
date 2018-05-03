@@ -16,6 +16,11 @@ tecan_server <- function(input, output, session) {
 
         drive_tecanURL <- get_drive_url(session, "tecan")
 
+        #### DEBUG ####
+        observeEvent(tecan_n$id(), {
+            cat("input tecan_n id ", tecan_n$id(), "\n")
+        })
+
         #Only initiate mongo connexion when needed
         db <- db_from_environment(session, collection = "lab_experiments")
 
@@ -252,13 +257,15 @@ tecan_server <- function(input, output, session) {
                     tecan_n$raw()$user_msg == "")
                         # for each sample, display the widget
                         walk2(samples()$Sample,samples()$Key, ~ {
+                            cat("Generating module for tecan sample widget. tecan_n id ", tecan_n$id(), "\n")
 
                                 control_samples[[.x]] <- callModule(module = sample_widget,
                                                                     id = paste0(input$file, "-", .x),
                                                                     sample_well = .x,
                                                                     sample_key = .y,
                                                                     samples = samples,
-                                                                    tecan_n,
+                                                                    file_id = tecan_n$id(),
+                                                                    type = tecan_n$raw()$type,
                                                                     db,
                                                                     registry,
                                                                     go_file = reactive(tecan_n$go_file())
