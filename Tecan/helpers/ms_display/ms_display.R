@@ -61,7 +61,10 @@ ms_data_display_ui_main <- function(id) {
 ms_data_display_server <- function(input, output, session,
                                    go_button,
                                    ms_tbl,
-                                   type = c("ms", "search")) {
+                                   type = c("ms", "search"),
+                                   db_tags = NULL) {
+
+     if (is.null(db_tags)) db_tags <- db_from_environment(session, "tags")
      ns <- session$ns
      stored_choices <- reactiveVal(NULL)
      display_tbl <- reactiveVal()
@@ -224,6 +227,21 @@ ms_data_display_server <- function(input, output, session,
                )
           }
      }, ignoreNULL = FALSE)
+
+     output$tags_widget <- renderUI({
+          browser()
+          selectizeInput(inputId = ns("tags"),
+                         label = "Tags",
+                         choices = tags_retrieve(db_tags),
+                         multiple = TRUE,
+                         selected = if_exists_than_that(ms_data() %>%
+                                                             filter(Name == clicked_sample()$name) %>%
+                                                             pull(Tags) %>%
+                                                             unlist()
+                         ),
+                         options = list(create = 'true')
+          )
+     })
 
      barplot_scale <- reactive({
           ifelse(input$log_scale, "log1p", "identity")

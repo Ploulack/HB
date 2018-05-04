@@ -31,18 +31,6 @@ search_server <- function(input, output, session) {
         )
     })
 
-    output$tags_widget <- renderUI({
-        selectizeInput(inputId = ns("tags"),
-            label = "Tags",
-            choices = db_tags_view$find('{}') %>%
-                flatten() %>%
-                flatten_chr(),
-            multiple = TRUE
-            # selected = if_exists_than_that(tags),
-
-        )
-    })
-
     observeEvent(input$search_go, {
         validate(need(input$search_molecules != "", message = "Must select at least a molecule"))
 
