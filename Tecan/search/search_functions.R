@@ -2,23 +2,23 @@ library(tidyverse); library(mongolite)
 source("helpers/mongo_helpers.R")
 
 search_mol_by_min_conc <- function(db, molecule, min_conc, max_conc, tags, with_samples = FALSE) {
-    molecule_filter <- c(molecule, toupper(molecule)) %>%
-        jsonlite::toJSON(pretty = TRUE)
-    tags_filter <- tags %>%
-        jsonlite::toJSON()
+     molecule_filter <- c(molecule, toupper(molecule)) %>%
+          jsonlite::toJSON(pretty = TRUE)
+     tags_filter <- tags %>%
+          jsonlite::toJSON()
 
-    query_start <- str_interp('{
+     query_start <- str_interp('{
                                 "data": { "$elemMatch" :
                                             {
                                             "Concentration" : {"$gt" : ${min_conc}, "$lt" : ${max_conc}},
                                             "Molecule" : { "$regex" : "${molecule}", "$options": "i" }
                                             ')
-    query_tags <- str_interp(',
+     query_tags <- str_interp(',
                                             "Tags" : {"$all": ${tags_filter}}')
 
-    query_end <- str_interp('}}}')
+     query_end <- str_interp('}}}')
 
-    project_start <- str_interp('{
+     project_start <- str_interp('{
                                 "$project" :
                                     {"data" :
                                         {"$filter":
@@ -30,7 +30,7 @@ search_mol_by_min_conc <- function(db, molecule, min_conc, max_conc, tags, with_
                                                         {"$lt":[ "$$this.Concentration",${max_conc} ]},
                                                         {"$in" : [ "$$this.Molecule", ${molecule_filter} ]}
         ')
-    tag_search <- str_interp(',
+     tag_search <- str_interp(',
                                                         {"$and" :
                                                             {"$map" : {
                                                                 "input" : ${tags_filter},
@@ -40,7 +40,7 @@ search_mol_by_min_conc <- function(db, molecule, min_conc, max_conc, tags, with_
                                                             }
                                                         }')
 
-    project_end <- str_interp(']}
+     project_end <- str_interp(']}
                                             }
                                         },
                                     "xml" : "$name",
@@ -48,31 +48,32 @@ search_mol_by_min_conc <- function(db, molecule, min_conc, max_conc, tags, with_
                                     }
                         }')
 
-    if (is.null(tags)) {
+     if (is.null(tags)) {
 
-        project1 <- paste0(project_start, project_end)
-        query <- paste0(query_start, query_end)
-    } else {
-        project1 <- paste0(project_start, tag_search, project_end)
-        query <- paste0(query_start, query_tags, query_end)
-    }
+          project1 <- paste0(project_start, project_end)
+          query <- paste0(query_start, query_end)
+     } else {
+          project1 <- paste0(project_start, tag_search, project_end)
+          query <- paste0(query_start, query_tags, query_end)
+     }
 
-    match <- str_interp('{ "$match": ${query} }')
+     match <- str_interp('{ "$match": ${query} }')
 
 
-    unwind <- str_interp('{ "$unwind" : "$data"}')
-    project2 <- str_interp('{
+     unwind <- str_interp('{ "$unwind" : "$data"}')
+     project2 <- str_interp('{
                                 "$project" :
-                                    {"data.Strain":
+                                   {"data.Strain":
                                         {"$toUpper": "$data.Strain"},
-                                    "xml" : 1,
-                                    "date_created" : 1,
-                                    "data.Concentration" : 1,
-                                    "data.sampleid": 1,
-                                    "data.Name" : 1,
-                                    "data.Molecule" : 1}
+                                   "xml" : 1,
+                                   "date_created" : 1,
+                                   "data.Concentration" : 1,
+                                   "data.sampleid": 1,
+                                   "data.Name" : 1,
+                                   "data.Molecule" : 1,
+                                   "data.Tags" : 1}
                                     }')
-    group <- str_interp('{
+     group <- str_interp('{
                             "$group": {
                                 "_id": {
                                     "strain": "$data.Strain",
@@ -84,10 +85,10 @@ search_mol_by_min_conc <- function(db, molecule, min_conc, max_conc, tags, with_
                             }
                         }')
 
-    if (with_samples) {
-        res <- aggregate_pipeline(db, match, project1, unwind, project2)
-    } else {
-        res <- aggregate_pipeline(db, match, project1, unwind, project2, group)
-    }
-    res
+     if (with_samples) {
+          res <- aggregate_pipeline(db, match, project1, unwind, project2)
+     } else {
+          res <- aggregate_pipeline(db, match, project1, unwind, project2, group)
+     }
+     res
 }

@@ -21,11 +21,9 @@ substract_blanks <- function(res) {
         slice((n_molecules + 1):n()) %>%
         filter(str_detect(type, "(?i)Blank")) %>%
         group_by(Molecule) %>%
-        summarise(Concentration = if_else(
-             mean(Concentration, na.rm = TRUE) %>% is.nan(),
-             0,
-             mean(Concentration, na.rm = TRUE)
-             )) %>%
+          summarise(Concentration = mean(Concentration, na.rm = TRUE) %>%
+                         if_else(is.nan(.), 0, .)
+                    ) %>%
         arrange(Molecule)
 
     blank <- blanks_1 %>%
@@ -75,5 +73,5 @@ extract_ms_data <- function(xml) {
                Molecule = as.factor(Molecule)) %>%
         left_join(samples_info, by = "sampleid") %>%
         substract_blanks() %>%
-        filter(tolower(type) %in% c("analyte", "blank"))
+        filter(!type %>% str_detect("(?i)Standard"))
 }
