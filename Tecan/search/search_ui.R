@@ -6,7 +6,7 @@ search_ui <- function(id) {
     fluidPage(
         sidebarPanel(width = 3,
             selectInput(ns("search_molecules"),
-                label = "Select Molecule to search",
+                label = "Select Molecule",
                 choices = "Waiting from Mongo"),
             fluidRow(
                 column(5,

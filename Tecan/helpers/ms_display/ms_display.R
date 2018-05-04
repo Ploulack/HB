@@ -1,4 +1,4 @@
-source(file = "helpers/delete_file_button_module.R")
+source("helpers/delete_file_button_module.R")
 source("helpers/ui_generics/select_file_ui.R")
 
 ms_data_display_ui_sidebar <- function(id) {
