@@ -31,6 +31,16 @@ search_server <- function(input, output, session) {
         )
     })
 
+    output$tags_widget <- renderUI({
+         selectizeInput(inputId = ns("tags"),
+                        label = "Tags",
+                        choices = db_tags_view$find('{}') %>%
+                             flatten() %>%
+                             flatten_chr(),
+                        multiple = TRUE
+         )
+    })
+
     observeEvent(input$search_go, {
         validate(need(input$search_molecules != "", message = "Must select at least a molecule"))
 
@@ -106,5 +116,6 @@ search_server <- function(input, output, session) {
         session = session,
         go_button = reactive(input$display_samples),
         ms_tbl = reactive(results$with_samples),
-        type = "search")
+        type = "search",
+        db_tags_view = db_tags_view)
 }

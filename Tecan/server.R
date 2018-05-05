@@ -14,8 +14,8 @@ function(input, output, session) {
     })
 
     output$token_exists <- reactive({
-        token_test()
-        # TRUE
+        # token_test()
+        TRUE
     })
     outputOptions(output, "token_exists", suspendWhenHidden = FALSE)
 

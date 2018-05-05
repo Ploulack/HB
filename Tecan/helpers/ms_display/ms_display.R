@@ -28,16 +28,15 @@ ms_data_display_ui_main <- function(id) {
      ns <- NS(id)
      tagList(
           fluidRow(
-               column(5,
-                      htmlOutput(outputId = ns("x_value"))
+               column(4,
+                      htmlOutput(outputId = ns("x_val"))
                ),
                column(2,
-                      conditionalPanel(
-                           str_interp("output['${ns('x_value')}'].length > 0"),
-                           actionButton(ns("clear_selected_sample"),
-                                        "Clear")
-                      )
-               )
+                      actionButton(ns("clear_selected_sample"),
+                                   "Clear")
+               ),
+               column(3,
+                      uiOutput(ns("tags_widget")))
           ),
           checkboxInput(ns("log_scale"),
                         label = "Switch to log scale"),
@@ -62,9 +61,13 @@ ms_data_display_server <- function(input, output, session,
                                    go_button,
                                    ms_tbl,
                                    type = c("ms", "search"),
-                                   db_tags = NULL) {
+                                   db_ms = NULL,
+                                   db_tags = NULL,
+                                   db_tags_view = NULL) {
 
+     if (is.null(db_ms)) db_ms <- db_from_environment(session, "ms")
      if (is.null(db_tags)) db_tags <- db_from_environment(session, "tags")
+     if (is.null(db_tags_view)) db_tags_view <- db_from_environment(session, "tags_view")
      ns <- session$ns
      stored_choices <- reactiveVal(NULL)
      display_tbl <- reactiveVal()
@@ -228,20 +231,60 @@ ms_data_display_server <- function(input, output, session,
           }
      }, ignoreNULL = FALSE)
 
+     #### TAGS ####
+
      output$tags_widget <- renderUI({
+          if (nrow(ms_data()) == 0 || is.null(clicked_sample())) return()
           browser()
+
           selectizeInput(inputId = ns("tags"),
                          label = "Tags",
-                         choices = tags_retrieve(db_tags),
+                         choices = db_tags_view$find('{}') %>%
+                              flatten() %>%
+                              flatten_chr(),
                          multiple = TRUE,
-                         selected = if_exists_than_that(ms_data() %>%
-                                                             filter(Name == clicked_sample()$name) %>%
-                                                             pull(Tags) %>%
-                                                             unlist()
-                         ),
+                         selected = ms_data() %>%
+                              filter(Name == clicked_sample()$name) %>%
+                              pull(Tags) %>%
+                              unlist(),
                          options = list(create = 'true')
           )
      })
+
+     observeEvent(input$tags,{
+          validate(need(!is.null(input$tags), message = FALSE))
+          browser()
+          tags <- input$tags %>%
+               map_chr(~ str_interp('"${.}"'))
+
+          tags <- str_interp('${str_c(tags, collapse = ", ")}')
+
+          tags_add(db = db_tags, tags = tags)
+
+          clicked_data <- ms_data() %>%
+               filter(Name == clicked_sample()$name)
+
+          clicked_data_tags <- clicked_data %>%
+               pull(Tags) %>%
+               unlist() %>%
+               sort()
+
+          if (!(input$tags %>% sort() == clicked_sample_tags) %>% all()) {
+               tags_json <- input$tags %>%
+                    jsonlite::toJSON()
+               query <- str_interp('{"_id" : "${clicked_data$`_id`}",
+                                   "data" :
+                                        {"$elemMatch" :
+                                             {"sampleid" : "${clicked_data$sampleid}",
+                                             "Molecule" : "${clicked_data$Molecule}"}
+                                        }
+                                   }')
+               update <- str_interp('{"$set" : {"data.$.Tags" : ${tags_json}}}')
+               db_ms$update(query, update)
+          }
+     })
+
+     #### GRAPHS ####
 
      barplot_scale <- reactive({
           ifelse(input$log_scale, "log1p", "identity")
@@ -285,7 +328,7 @@ ms_data_display_server <- function(input, output, session,
 
 
      # Print the name of the x value
-     output$x_value <- renderText({
+     output$x_val <- renderText({
           if (is.null(clicked_sample())) return()
           else {
                HTML("You've selected sample <code>", clicked_sample()$name, "</code>",
