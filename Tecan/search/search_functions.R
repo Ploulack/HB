@@ -6,6 +6,7 @@ search_mol_by_min_conc <- function(db, molecule, min_conc, max_conc, tags, with_
           jsonlite::toJSON(pretty = TRUE)
      tags_filter <- tags %>%
           jsonlite::toJSON()
+     tags_size <- tags %>% length()
 
      query_start <- str_interp('{
                                 "data": { "$elemMatch" :
@@ -26,22 +27,31 @@ search_mol_by_min_conc <- function(db, molecule, min_conc, max_conc, tags, with_
                                                 "$data",
                                                 "cond":
                                                     {"$and": [
-                                                        {"$gt":[ "$$this.Concentration",${min_conc} ]},
-                                                        {"$lt":[ "$$this.Concentration",${max_conc} ]},
-                                                        {"$in" : [ "$$this.Molecule", ${molecule_filter} ]}
+                                                       {"$gt":[ "$$this.Concentration",${min_conc} ]},
+                                                       {"$lt":[ "$$this.Concentration",${max_conc} ]},
+                                                       {"$in" : [ "$$this.Molecule", ${molecule_filter} ]}
         ')
-     tag_search <- str_interp(',
-                                                        {"$and" :
-                                                            {"$map" : {
-                                                                "input" : ${tags_filter},
-                                                                "as" : "x",
-                                                                "in" : {"$in" : ["$$x", "$$this.Tags"] }
-                                                            }
-                                                            }
-                                                        }')
 
-     project_end <- str_interp(']}
-                                            }
+tag_search <- str_interp(',
+                                                       {"$gte": [ {"$size": "$$this.Tags"}, ${tags_size}  ]},
+                                                       {"$gte": [
+                                                            {"$sum":
+                                                                 {"$map" : {
+                                                                      "input" : "$$this.Tags",
+                                                                      "as" : "tag",
+                                                                      "in" : {"$cond":[
+                                                                                {"$in" : ["$$tag", ${tags_filter}] },
+                                                                                1,0]
+                                                                      }
+                                                                 }}
+                                                            },
+                                                            ${tags_size}
+                                                       ]}
+')
+
+project_end <- str_interp('
+                                                  ]}
+                                           }
                                         },
                                     "xml" : "$name",
                                     "date_created" : 1

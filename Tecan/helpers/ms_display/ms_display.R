@@ -72,6 +72,7 @@ ms_data_display_server <- function(input, output, session,
      stored_choices <- reactiveVal(NULL)
      display_tbl <- reactiveVal()
      last_click <- reactiveVal(NULL)
+     ms_data <- reactiveVal(NULL)
 
      output$blanks_option <- renderUI({
           if (type == "ms") {
@@ -81,14 +82,14 @@ ms_data_display_server <- function(input, output, session,
           }
      })
 
-     ms_data <- eventReactive(c(go_button(), input$show_blanks), {
+     observeEvent(c(go_button(), input$show_blanks), {
           if (is.null(ms_tbl())) return()
 
           if (type == "search" || (input$show_blanks %||% FALSE)) {
-               ms_tbl()
+               ms_data(ms_tbl())
           }
           else {
-               ms_tbl() %>% filter(type == "Analyte")
+               ms_data(ms_tbl() %>% filter(type == "Analyte"))
           }
      })
 
@@ -235,7 +236,7 @@ ms_data_display_server <- function(input, output, session,
 
      output$tags_widget <- renderUI({
           if (nrow(ms_data()) == 0 || is.null(clicked_sample())) return()
-          browser()
+
 
           selectizeInput(inputId = ns("tags"),
                          label = "Tags",
@@ -247,14 +248,17 @@ ms_data_display_server <- function(input, output, session,
                               filter(Name == clicked_sample()$name) %>%
                               pull(Tags) %>%
                               unlist(),
-                         options = list(create = 'true')
+                         options = list(create = 'true'
+                                        ,
+                                        allowEmptyOption = 'true'
+                                        # createOnBlur = 'true'
+                                        )
           )
      })
 
      observeEvent(input$tags,{
-          validate(need(!is.null(input$tags), message = FALSE))
-          browser()
-          tags <- input$tags %>%
+
+          tags <- input$tags %||% "" %>%
                map_chr(~ str_interp('"${.}"'))
 
           tags <- str_interp('${str_c(tags, collapse = ", ")}')
@@ -269,8 +273,8 @@ ms_data_display_server <- function(input, output, session,
                unlist() %>%
                sort()
 
-          if (!(input$tags %>% sort() == clicked_sample_tags) %>% all()) {
-               tags_json <- input$tags %>%
+          if (!(input$tags %||% "" %>% sort() == clicked_data_tags) %>% all()) {
+               tags_json <- input$tags %||% "" %>%
                     jsonlite::toJSON()
                query <- str_interp('{"_id" : "${clicked_data$`_id`}",
                                    "data" :
@@ -280,9 +284,16 @@ ms_data_display_server <- function(input, output, session,
                                         }
                                    }')
                update <- str_interp('{"$set" : {"data.$.Tags" : ${tags_json}}}')
-               db_ms$update(query, update)
+               upd_log <- db_ms$update(query, update)
+
+
+               if (ms_data() %>% nrow() > 0) {
+                    tmp_ms_data <- ms_data()
+                    tmp_ms_data$Tags[ms_data()$sampleid == clicked_data$sampleid] <- list(input$tags %||% "")
+                    ms_data(tmp_ms_data)
+               }
           }
-     })
+     }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
      #### GRAPHS ####
 

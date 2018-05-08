@@ -48,14 +48,17 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
                 #TODO: Add a condition like the name is not empty
 
                 if (is.na(prot_row %>% "["(folder_url))) {
-
+                     # Get or create the folder in the TECAN or MS parent folder
+                     # (depending on which tab the user has opened)
                         drbl <- drive_create_or_get_folder(parent_folder = drive_folder,
                                                    folder_name = prot_row$name)
 
+                        # Get or create the csv that will track the plates processed and
+                        # be placed inside the just created folder
                         plates_processed <- get_plates_tracking_drbl(prot_row, drbl, tab_name)
                         stopifnot(is_dribble(plates_processed))
 
-                        # Get the new folder link
+                        # Get the new folder and csv links
                         links <- list(drbl, plates_processed) %>%
                                 map_chr(dribble_get_link)
 
@@ -63,7 +66,8 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
                         protocols[i, paste0(tab_name, "_plates_processed_url")] <- links[2]
 
                         if (is.na(prot_row[[csv_folder]])) {
-
+                             # If we're in TECAN this creates the folder for Hamilton
+                             # Where, after a tecan sampling has been run, the CSV values for the pooling will be placed
                                 csv_folder_drbl <- drive_create_or_get_folder(get_drive_url(session, csv_folder),
                                                                         prot_row$name)
                                 #Add csv folder link to current protocols tibble
@@ -87,7 +91,8 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
         #Update the list of experiments csv file used by hamilton method to pop the user experiment selection
         #for experiment dependent methods (eg: Pooling)
         if (update_hami_csv & tab_name == "tecan") {
-                tmp_path <- "temp/protocols_list.csv"
+
+                tmp_path <- "temp/experiments_list.csv"
 
                 protocols %>%
                         select(index, name) %>%

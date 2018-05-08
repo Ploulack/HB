@@ -7,7 +7,6 @@ tecan_ui <- function(id) {
 
                              #Conditional to only display two parameter inputs for relevant file type
                              # condition = "output.type == 'DNA Quantification'",
-
                              #Conditional not to display the refresh / delete buttons until file list received from drive
                              select_file_ui(ns("tecan")),
                              tags$hr(),
