@@ -227,7 +227,9 @@ ms_server <- function(input, output, session) {
                 str_remove("[\\n|\\s]+\\]")
 
 
-            ms_dat_json <- jsonlite::toJSON(x = ms$tbl() %>% filter(type == "blank"),
+            ms_dat_json <- jsonlite::toJSON(x = ms$tbl() %>%
+                                                 select(-`_id`) %>% #id is already inserted as key into the DB entry for that file.
+                                                 filter(!str_detect(type, "(?i)blank")),
                                             dataframe = "rows",
                                             POSIXt = "mongo",
                                             pretty = TRUE)
@@ -240,9 +242,23 @@ ms_server <- function(input, output, session) {
             )
 
             insert_log <- ms_db$insert(data = query)
+        } else {
+             #Merge tags
+             ms$tbl(
+                  ms$tbl() %>%
+                       left_join(record$entry$data[[1]] %>%
+                                       as_tibble() %>%
+                                       select(sampleid, Molecule, Tags),
+                                  by = c("sampleid", "Molecule"),
+                                  suffix = c("_xml", "_db")) %>%
+                       mutate(Tags = map2(Tags_xml, Tags_db, ~{
+                            c(.x, .y) %>% unique()}),
+                            Molecule = as_factor(Molecule)
+                       )
+             )
         }
         file_record(record)
-    })
+    }, priority = 2)
 
 
     #### MS DATA DIPLAY ####

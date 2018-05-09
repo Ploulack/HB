@@ -165,8 +165,8 @@ ms_data_display_server <- function(input, output, session,
                            summarise(sd = sd(Concentration),
                                      Mean = mean(Concentration)) %>%
                            ungroup() %>%
-                           mutate(cut_off = TRUE)
-          )
+                           mutate(cut_off = if (is.null(clicked_sample())) TRUE else display_tbl()$cut_off)
+                           )
      }, priority = -1)
 
      observeEvent(input$click, {
@@ -252,7 +252,7 @@ ms_data_display_server <- function(input, output, session,
                                         ,
                                         allowEmptyOption = 'true'
                                         # createOnBlur = 'true'
-                                        )
+                         )
           )
      })
 
@@ -266,7 +266,7 @@ ms_data_display_server <- function(input, output, session,
           tags_add(db = db_tags, tags = tags)
 
           clicked_data <- ms_data() %>%
-               filter(Name == clicked_sample()$name)
+               filter(Name %in% clicked_sample()$name & Molecule %in% clicked_sample()$molecule)
 
           clicked_data_tags <- clicked_data %>%
                pull(Tags) %>%
@@ -276,6 +276,7 @@ ms_data_display_server <- function(input, output, session,
           if (!(input$tags %||% "" %>% sort() == clicked_data_tags) %>% all()) {
                tags_json <- input$tags %||% "" %>%
                     jsonlite::toJSON()
+
                query <- str_interp('{"_id" : "${clicked_data$`_id`}",
                                    "data" :
                                         {"$elemMatch" :

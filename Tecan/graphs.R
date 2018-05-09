@@ -32,13 +32,3 @@ graph_bar_get_clicked_sample <- function(click_x,
              molecule = molecule_name,
              value = value)
 }
-
-
-
-
-
-
-
-
-
-# browser()

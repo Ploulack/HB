@@ -64,7 +64,7 @@ obtain_file_data <- function(go_button,
                         print(paste0("Extracting file : ", file_container$file_dribble()$name))
                         file_dat <- extract_function(file_container$id(), file_container$files())
                         dat_container(file_dat)
-                        # experiment$raw <- tecan_extract(input$file, tecan$files)
+
                         if (!is.null(data_saved_flag)) data_saved_flag(FALSE)
                 }
         }, priority = 3)
