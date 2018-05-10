@@ -354,7 +354,8 @@ ms_data_display_server <- function(input, output, session,
                if (type == "ms")
                     paste0(ms$file_dribble()$name, ".csv")
                else
-                    paste0("search export ", Sys.time() %>% force_tz("America/Montreal"), ".csv")
+                    cat("about to force tz in ms_display", "\n")
+                    paste0("search export ", Sys.time() %>% force_tz(tzone = "America/Montreal"), ".csv")
           },
           content = function(file) {
                write_csv(

@@ -119,6 +119,7 @@ tecan_server <- function(input, output, session) {
 
                 # Store the pooling result from the users final settings in the modal
                 tecan_n$pool <- plate_pooling(tecan_n$calculated()$Results,
+                                              is_diluted = input$is_diluted,
                                               well_volume = input$well_volume,
                                               min_dw_conc = input$dw_min_conc,
                                               min_wells_nb = input$min_nb_wells)
