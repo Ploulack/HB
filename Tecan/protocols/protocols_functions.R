@@ -39,6 +39,13 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
                 filter(is.na(date_finished) | date_finished > Sys.Date()) %>%
                 mutate(index = 1:n()) #TODO: se souvenir de retirer cet index
 
+        expected_names <- c("name", "protocol", "strain", "plasmid", "total_plates", "date_finished",
+                            "description", "tecan_processed_plates","tecan_folder_url", "tecan_plates_processed_url",
+                            "tecan_csv_folder_url", "ms_processed_plates", "ms_folder_url", "ms_plates_processed_url",
+                            "ms_csv_folder_url", "index")
+
+        if (!protocols %>% names() == expected_names) stop("Problem with HB Experiments column headers")
+
 
         #Create directory and add directory link to spreadsheet if a protocol doesn't have its own
         #TODO: create folders not existing

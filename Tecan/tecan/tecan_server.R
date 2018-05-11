@@ -133,6 +133,8 @@ tecan_server <- function(input, output, session) {
                 selected_prot <- tecan_n$protocols() %>%
                         filter(name == tecan_p$set_protocol())
 
+                print("Selected Protocol Info in observeEvent(input$ok_pooling...) : ")
+                print(selected_prot)
 
                 #Calculate water volume to normalize and generate the csv files for hamilton then upload to drive
                 tmp_norm_csv <- str_interp("temp/${tecan_p$set_protocol()}__plate_${tecan_p$set_plate_nb()}.csv")

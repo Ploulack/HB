@@ -141,6 +141,7 @@ ms_data_display_server <- function(input, output, session,
      # remove any sample selection
      observeEvent(input$unselect, {
           stored_choices(NULL)
+          last_click(NULL)
 
           updateCheckboxGroupInput(session = session,
                                    inputId = "samples",
@@ -230,7 +231,7 @@ ms_data_display_server <- function(input, output, session,
                          )
                )
           }
-     }, ignoreNULL = FALSE)
+     }, ignoreNULL = FALSE, priority = 10)
 
      #### TAGS ####
 
