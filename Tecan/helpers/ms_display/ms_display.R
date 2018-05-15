@@ -1,6 +1,8 @@
 source("helpers/delete_file_button_module.R")
 source("helpers/ui_generics/select_file_ui.R")
 
+#### UI #####
+
 ms_data_display_ui_sidebar <- function(id) {
      ns <- NS(id)
 
@@ -27,13 +29,13 @@ ms_data_display_ui_sidebar <- function(id) {
 ms_data_display_ui_main <- function(id) {
      ns <- NS(id)
      tagList(
+          uiOutput(ns("selected_samples_tags")),
           fluidRow(
                column(4,
                       htmlOutput(outputId = ns("x_val"))
                ),
                column(2,
-                      actionButton(ns("clear_selected_sample"),
-                                   "Clear")
+                      actionButton(ns("clear_selected_sample"), "Clear")
                ),
                column(3,
                       uiOutput(ns("tags_widget")))
@@ -47,7 +49,8 @@ ms_data_display_ui_main <- function(id) {
           ),
           fluidRow(
                column(3,checkboxInput(inputId = ns("display_raw"),
-                                      label = "Display unaggregated data")
+                                      label = "Unaggregated data (Summarise groups by their mean)",
+                                      value = TRUE)
                ),
                column(3, downloadLink(outputId = ns("save_csv"),
                                       label = "Download data as csv")
@@ -150,9 +153,13 @@ ms_data_display_server <- function(input, output, session,
 
      unaggregated_tbl <- reactive({
           if (any(is.null(c(input$samples, input$molecules)))) return()
-
+          # browser()
           res_tbl <- ms_data() %>%
-               select(c(Name, Molecule, Concentration)) %>%
+               select(c(Name, Molecule, Concentration, Tags)) %>%
+               mutate(Tags = Tags %>%
+                           map_chr(~ str_c(., collapse = ", ")) %>%
+                           str_remove("^(,\\s*)")
+               ) %>%
                group_by(Name, Molecule) %>%
                arrange(Name) %>%
                filter(Name %in% input$samples) %>%
@@ -167,7 +174,7 @@ ms_data_display_server <- function(input, output, session,
                                      Mean = mean(Concentration)) %>%
                            ungroup() %>%
                            mutate(cut_off = if (is.null(clicked_sample())) TRUE else display_tbl()$cut_off)
-                           )
+          )
      }, priority = -1)
 
      observeEvent(input$click, {
@@ -249,10 +256,8 @@ ms_data_display_server <- function(input, output, session,
                               filter(Name == clicked_sample()$name) %>%
                               pull(Tags) %>%
                               unlist(),
-                         options = list(create = 'true'
-                                        ,
+                         options = list(create = 'true',
                                         allowEmptyOption = 'true'
-                                        # createOnBlur = 'true'
                          )
           )
      })
@@ -297,6 +302,41 @@ ms_data_display_server <- function(input, output, session,
           }
      }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
+     #### MULTIPLE SAMPLES TAGGING
+
+     common_tags <- reactive(
+          unaggregated_tbl() %>%
+               pull(Tags) %>%
+               str_split(", ") %>%
+               reduce(~keep(.x, .x %in% .y))
+     )
+
+     output$selected_samples_tags <- renderUI({
+          if (nrow(unaggregated_tbl()) == 0 || is.null(input$samples)) return()
+
+          selectizeInput(inputId = ns("selected_samples_tags"),
+                         label = "Common tags acrosse selected samples",
+                         choices = db_tags_view$find('{}') %>%
+                              flatten() %>%
+                              flatten_chr(),
+                         multiple = TRUE,
+                         selected = common_tags(),
+                         options = list(create = 'true',
+                                        allowEmptyOption = 'true'
+                         )
+          )
+     })
+
+     observeEvent(input$selected_samples_tags, {
+          browser()
+          input_tags <- input$selected_samples_tags
+
+          tags_to_add <- input_tags[!(input_tags %in% common_tags())]
+          tags_to_remove <- common_tags[!(common_tags() %in% input_tags)]
+
+
+     }, priority = -1)
+
      #### GRAPHS ####
 
      barplot_scale <- reactive({
@@ -321,7 +361,8 @@ ms_data_display_server <- function(input, output, session,
                theme(axis.text.x = element_text(angle = 60,
                                                 hjust = .8,
                                                 size = 10,
-                                                face = if_else(display_tbl()$cut_off,"bold", "plain"))) +
+                                                face = if_else(display_tbl()$cut_off,"bold", "plain")),
+                     legend.position = c(.9, .85)) +
                scale_y_continuous(trans = barplot_scale()) +
                scale_fill_discrete(limits = levels(ms_data()$Molecule)) +
                scale_alpha_discrete(drop = FALSE, guide = "none")
@@ -356,7 +397,7 @@ ms_data_display_server <- function(input, output, session,
                     paste0(ms$file_dribble()$name, ".csv")
                else
                     cat("about to force tz in ms_display", "\n")
-                    paste0("search export ", Sys.time() %>% force_tz(tzone = "America/Montreal"), ".csv")
+               paste0("search export ", Sys.time() %>% force_tz(tzone = "America/Montreal"), ".csv")
           },
           content = function(file) {
                write_csv(

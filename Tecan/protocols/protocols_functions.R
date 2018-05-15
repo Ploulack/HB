@@ -44,7 +44,7 @@ protocols_get <- function(drive_folder, prot_gsheet, session, tab_name) {
                             "tecan_csv_folder_url", "ms_processed_plates", "ms_folder_url", "ms_plates_processed_url",
                             "ms_csv_folder_url", "index")
 
-        if (!protocols %>% names() == expected_names) stop("Problem with HB Experiments column headers")
+        if (!all(protocols %>% names() == expected_names)) stop("Problem with HB Experiments column headers")
 
 
         #Create directory and add directory link to spreadsheet if a protocol doesn't have its own

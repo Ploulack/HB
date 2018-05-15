@@ -52,7 +52,6 @@ mongo_update_file <- function(db, file, upd_str, type = "tecan", notif_msg = NUL
      }
      else
           {
-          # cat("DB update failed. Query : ", "\n", query %>% jsonlite::prettify(), "\n", "and Update : ", upd_str %>% jsonlite::prettify())
           showNotification(ui = "DB entry failed",
                            duration = 3,
                            type = "message")
