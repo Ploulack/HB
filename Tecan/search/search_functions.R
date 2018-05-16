@@ -12,7 +12,7 @@ search_mol_by_min_conc <- function(db, molecule, min_conc, max_conc, tags, with_
                                 "data": { "$elemMatch" :
                                             {
                                             "Concentration" : {"$gt" : ${min_conc}, "$lt" : ${max_conc}},
-                                            "Molecule" : { "$regex" : "${molecule}", "$options": "i" }
+                                            "Molecule" : { "$regex" : "${molecule}", "$options": "i"}
                                             ')
      query_tags <- str_interp(',
                                             "Tags" : {"$all": ${tags_filter}}')

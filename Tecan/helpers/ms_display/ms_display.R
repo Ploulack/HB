@@ -1,3 +1,4 @@
+library(purrrlyr)
 source("helpers/delete_file_button_module.R")
 source("helpers/ui_generics/select_file_ui.R")
 
@@ -302,7 +303,7 @@ ms_data_display_server <- function(input, output, session,
           }
      }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
-     #### MULTIPLE SAMPLES TAGGING
+     #### MULTIPLE SAMPLES TAGGING ####
 
      common_tags <- reactive(
           unaggregated_tbl() %>%
@@ -328,13 +329,44 @@ ms_data_display_server <- function(input, output, session,
      })
 
      observeEvent(input$selected_samples_tags, {
-          browser()
           input_tags <- input$selected_samples_tags
 
           tags_to_add <- input_tags[!(input_tags %in% common_tags())]
-          tags_to_remove <- common_tags[!(common_tags() %in% input_tags)]
+          tags_to_remove <- common_tags()[!(common_tags() %in% input_tags)]
 
+          if (!tags_to_add %>% is_empty()) {
 
+               progress <- shiny::Progress$new()
+               inc <- 1/nrow(ms_data())
+
+               tags_to_add_json <- tags_to_add %>% jsonlite::toJSON()
+
+               test <- ms_data() %>%
+                    by_row(~{
+                         browser()
+                         sample <- .
+                         progress$inc(inc, str_interp("Adding ${tags_to_add %>% str_c(collapse = ', ')} to ${sample$Name}."))
+                         query <- str_interp('{"_id" : "${sample$`_id`}",
+                                        "data":{
+                                             "$elemMatch": {
+                                                  "Molecule": "${sample$Molecule}",
+                                                  "sampleid": "${sample$sampleid}"}
+                                        }
+                                   }')
+
+                         update <- str_interp('{"$addToSet" : {
+                                                  "data.$.Tags" : {
+                                                       "$each": ${tags_to_add_json}
+                                                       }
+                                                  }
+                                              }')
+                         log <- db_ms$update(query, update)
+                    }, .collate = "list", .to = "log")
+               browser()
+               #TODO: faire la modif de ms_data selon le resulat de log
+               #il va falloir faire un autre by_row...
+               progress$close()
+          }
      }, priority = -1)
 
      #### GRAPHS ####
