@@ -13,9 +13,8 @@ ms_data_display_ui_sidebar <- function(id) {
                              label = "Molecules",
                              choices = "Waiting for server..."),
           tags$hr(),
-          checkboxInput(inputId = ns("select_all"),
-                        label = "Select samples with a reading",
-                        value = FALSE),
+          actionButton(inputId = ns("select_all"),
+                       label = "Select samples with a reading"),
           uiOutput(ns("blanks_option")),
           actionButton(inputId = ns("unselect"),
                        label = "Unselect"),
@@ -38,7 +37,7 @@ ms_data_display_ui_main <- function(id) {
                column(2,
                       actionButton(ns("clear_selected_sample"), "Clear")
                ),
-               column(3,
+               column(4,
                       uiOutput(ns("tags_widget")))
           ),
           checkboxInput(ns("log_scale"),
@@ -61,6 +60,7 @@ ms_data_display_ui_main <- function(id) {
      )
 }
 
+#### INITIALIZE ####
 ms_data_display_server <- function(input, output, session,
                                    go_button,
                                    ms_tbl,
@@ -73,10 +73,10 @@ ms_data_display_server <- function(input, output, session,
      if (is.null(db_tags)) db_tags <- db_from_environment(session, "tags")
      if (is.null(db_tags_view)) db_tags_view <- db_from_environment(session, "tags_view")
      ns <- session$ns
-     stored_choices <- reactiveVal(NULL)
      display_tbl <- reactiveVal()
      last_click <- reactiveVal(NULL)
      ms_data <- reactiveVal(NULL)
+     sample_choices <- reactiveVal(NULL)
 
      output$blanks_option <- renderUI({
           if (type == "ms") {
@@ -95,21 +95,35 @@ ms_data_display_server <- function(input, output, session,
           else {
                ms_data(ms_tbl() %>% filter(type == "Analyte"))
           }
+          if (ms_data() %>% nrow() > 0) {
+               #For entries prior to Tag feature, we replace the character(0) with empty string
+               ms_data(
+                    ms_data() %>%
+                         mutate(
+                              Tags = map(Tags, ~{if (is_empty(.)) "" else .}),
+                              sample_id = group_indices(., `_id`, Name) %>% as.character()
+                         )
+               )
+
+               sample_choices(
+                    ms_data() %>%
+                         distinct(Name, `_id`, xml, .keep_all = TRUE) %>%
+                         {
+                              dat <- .
+                              pull(dat, sample_id) %>% set_names(dat$Name)
+                         }
+               )
+          }
      })
 
      observeEvent(c(go_button(), input$show_blanks), {
 
           if (is.null(ms_data())) return()
-          #Reset stored choices
-          stored_choices(NULL)
-
-          #Reset the select all button
-          updateCheckboxInput(session, "select_all", value = FALSE)
 
           updateCheckboxGroupInput(session = session,
                                    inputId = "samples",
-                                   choices = unique(ms_data()$Name),
-                                   selected = unique(ms_data()$Name)[1]
+                                   choices = sample_choices(),
+                                   selected = sample_choices()[1]
           )
 
           molecules <- unique(ms_data()$Molecule)
@@ -122,29 +136,22 @@ ms_data_display_server <- function(input, output, session,
 
      observeEvent(input$select_all, {
 
-          if (input$select_all) {
-               stored_choices(input$samples)
+          positive_sample_id <- ms_data() %>%
+               filter(Molecule %in% input$molecules,
+                      Concentration > 0) %>%
+               pull(sample_id) %>%
+               unique()
 
-               non_0_conc_choices <- ms_data() %>%
-                    filter(Molecule %in% input$molecules,
-                           Concentration > 0) %>%
-                    pull(Name) %>%
-                    unique()
 
-               updateCheckboxGroupInput(session = session,
-                                        inputId = "samples",
-                                        selected = non_0_conc_choices)
 
-          } else if (!is.null(stored_choices())) {
-               updateCheckboxGroupInput(session = session,
-                                        inputId = "samples",
-                                        selected = stored_choices())
-          }
+          updateCheckboxGroupInput(session = session,
+                                   inputId = "samples",
+                                   selected = sample_choices() %>%
+                                        keep(~ . %in% positive_sample_id))
      }, ignoreInit = TRUE)
 
      # remove any sample selection
      observeEvent(input$unselect, {
-          stored_choices(NULL)
           last_click(NULL)
 
           updateCheckboxGroupInput(session = session,
@@ -154,27 +161,36 @@ ms_data_display_server <- function(input, output, session,
 
      unaggregated_tbl <- reactive({
           if (any(is.null(c(input$samples, input$molecules)))) return()
-          # browser()
+
           res_tbl <- ms_data() %>%
-               select(c(Name, Molecule, Concentration, Tags)) %>%
+               select(c(Name, Molecule, Concentration, Tags, sample_id, xml)) %>%
                mutate(Tags = Tags %>%
                            map_chr(~ str_c(., collapse = ", ")) %>%
                            str_remove("^(,\\s*)")
                ) %>%
-               group_by(Name, Molecule) %>%
+               # This is not correct: this grouping here is then used by the diplay_tbl for mean/sd calculcation.
+               # But this only considers unique samples.
+               # TODO: find an xml with some grouping and test proper cross-sample grouping
+               group_by(Name, sample_id, Molecule) %>%
                arrange(Name) %>%
-               filter(Name %in% input$samples) %>%
+               filter(sample_id %in% input$samples) %>%
                filter(Molecule %in% input$molecules)
 
           return(res_tbl)
      })
 
      observeEvent(unaggregated_tbl(), {
+          browser()
           display_tbl(unaggregated_tbl() %>%
                            summarise(sd = sd(Concentration),
-                                     Mean = mean(Concentration)) %>%
+                                     Mean = mean(Concentration),
+                                     xml = unique(xml)) %>%
                            ungroup() %>%
-                           mutate(cut_off = if (is.null(clicked_sample())) TRUE else display_tbl()$cut_off)
+                           mutate(cut_off = if (is.null(clicked_sample())) TRUE else display_tbl()$cut_off) %>%
+                           group_by(Name) %>%
+                           add_count() %>%
+                           mutate(rank = row_number()) %>%
+                           ungroup()
           )
      }, priority = -1)
 
@@ -188,17 +204,17 @@ ms_data_display_server <- function(input, output, session,
      })
 
      clicked_sample <- eventReactive(last_click(), {
-
           if (is.null(last_click())) return(NULL)
 
           click_x <- last_click()$x
           n_molecules <- length(input$molecules)
           splits <- seq(1/(2 * n_molecules), 1 - 1/(2 * n_molecules), 1/n_molecules)
 
-          sample_lvls <- display_tbl()$Name %>%
+          sample_lvls <- display_tbl()$sample_id %>%
                as_factor() %>%
                levels()
-          name <- sample_lvls[round(click_x)]
+
+          clicked_sample_id <- sample_lvls[round(click_x)]
 
           molecule_lvls <- display_tbl()$Molecule %>%
                as_factor() %>%
@@ -207,15 +223,11 @@ ms_data_display_server <- function(input, output, session,
 
           x <- click_x - round(click_x) + 1/2
 
-          molecule_name <- molecule_lvls[which.min(abs(splits - x))]
+          clicked_molecule <- molecule_lvls[which.min(abs(splits - x))]
 
-          value <- display_tbl() %>%
-               filter(Molecule == molecule_name & Name == name) %>%
-               pull(Mean)
-
-          list(name = name,
-               molecule = molecule_name,
-               value = value)
+          display_tbl() %>%
+               filter(Molecule == clicked_molecule & sample_id == clicked_sample_id) %>%
+               rename(value = Mean, molecule = Molecule)
 
      }, ignoreNULL = FALSE)
 
@@ -228,7 +240,6 @@ ms_data_display_server <- function(input, output, session,
                          mutate(cut_off = TRUE)
                )
           } else {
-
                display_tbl(
                     display_tbl() %>%
                          mutate(cut_off = if_else(
@@ -254,7 +265,7 @@ ms_data_display_server <- function(input, output, session,
                               flatten_chr(),
                          multiple = TRUE,
                          selected = ms_data() %>%
-                              filter(Name == clicked_sample()$name) %>%
+                              filter(sample_id == clicked_sample()$sample_id) %>%
                               pull(Tags) %>%
                               unlist(),
                          options = list(create = 'true',
@@ -273,6 +284,7 @@ ms_data_display_server <- function(input, output, session,
           tags_add(db = db_tags, tags = tags)
 
           clicked_data <- ms_data() %>%
+               mutate(row_nb = row_number()) %>%
                filter(Name %in% clicked_sample()$name & Molecule %in% clicked_sample()$molecule)
 
           clicked_data_tags <- clicked_data %>%
@@ -295,9 +307,10 @@ ms_data_display_server <- function(input, output, session,
                upd_log <- db_ms$update(query, update)
 
 
-               if (ms_data() %>% nrow() > 0) {
+               if (ms_data() %>% nrow() > 0 && upd_log$modified == 1) {
+                    browser()
                     tmp_ms_data <- ms_data()
-                    tmp_ms_data$Tags[ms_data()$sampleid == clicked_data$sampleid] <- list(input$tags %||% "")
+                    tmp_ms_data$Tags[clicked_data$row_nb] <- list(input$tags %||% "")
                     ms_data(tmp_ms_data)
                }
           }
@@ -305,15 +318,17 @@ ms_data_display_server <- function(input, output, session,
 
      #### MULTIPLE SAMPLES TAGGING ####
 
-     common_tags <- reactive(
+     common_tags <- reactive({
           unaggregated_tbl() %>%
                pull(Tags) %>%
                str_split(", ") %>%
                reduce(~keep(.x, .x %in% .y))
-     )
+     })
 
      output$selected_samples_tags <- renderUI({
-          if (nrow(unaggregated_tbl()) == 0 || is.null(input$samples)) return()
+          if (unaggregated_tbl() %>% is.null() ||
+              nrow(unaggregated_tbl()) == 0 ||
+              is.null(input$samples)) return()
 
           selectizeInput(inputId = ns("selected_samples_tags"),
                          label = "Common tags acrosse selected samples",
@@ -328,44 +343,75 @@ ms_data_display_server <- function(input, output, session,
           )
      })
 
-     observeEvent(input$selected_samples_tags, {
+     observeEvent(c(input$selected_samples_tags, input$samples, input$molecules), {
           input_tags <- input$selected_samples_tags
 
           tags_to_add <- input_tags[!(input_tags %in% common_tags())]
           tags_to_remove <- common_tags()[!(common_tags() %in% input_tags)]
 
-          if (!tags_to_add %>% is_empty()) {
-
+          if (!c(tags_to_add, tags_to_remove) %>% is_empty()) {
                progress <- shiny::Progress$new()
-               inc <- 1/nrow(ms_data())
+               temp_data <- ms_data() %>%
+                    mutate(row_nb = row_number()) %>%
+                    filter( (Molecule %in% input$molecules) & (sample_id %in% input$samples) )
+               inc <- 1/nrow(temp_data)
 
-               tags_to_add_json <- tags_to_add %>% jsonlite::toJSON()
+               added <- NULL
 
-               test <- ms_data() %>%
+               temp_data <- temp_data %>%
                     by_row(~{
-                         browser()
                          sample <- .
-                         progress$inc(inc, str_interp("Adding ${tags_to_add %>% str_c(collapse = ', ')} to ${sample$Name}."))
                          query <- str_interp('{"_id" : "${sample$`_id`}",
-                                        "data":{
-                                             "$elemMatch": {
-                                                  "Molecule": "${sample$Molecule}",
-                                                  "sampleid": "${sample$sampleid}"}
-                                        }
+                                             "data":{
+                                                  "$elemMatch": {
+                                                       "Molecule": "${sample$Molecule}",
+                                                       "sampleid": "${sample$sampleid}"}
+                                             }
                                    }')
 
-                         update <- str_interp('{"$addToSet" : {
-                                                  "data.$.Tags" : {
-                                                       "$each": ${tags_to_add_json}
-                                                       }
+                         if (!tags_to_add %>% is_empty()) {
+                              added <- TRUE
+                              tags_to_add_json <- tags_to_add %>% jsonlite::toJSON()
+                              progress$inc(inc, str_interp("Adding ${tags_to_add %>% str_c(collapse = ', ')} to ${sample$Name}."))
+
+                              update <- str_interp('{"$addToSet" : {
+                                             "data.$.Tags" : {
+                                                  "$each": ${tags_to_add_json}
                                                   }
+                                             }
                                               }')
+
+                              #If db was changed, update the current table (obtained from the 'display samples' button)
+                         } else if (!tags_to_remove %>% is_empty()) {
+                              added <- FALSE
+                              tags_to_remove_json <- tags_to_remove %>% jsonlite::toJSON()
+                              progress$inc(inc, str_interp("Removing ${tags_to_remove %>% str_c(collapse = ', ')} tags in ${sample$Name}."))
+
+                              update <- str_interp('{"$pullAll" : {
+                                                  "data.$.Tags" : ${tags_to_remove_json}
+                                                  }
+                                             }')
+                         }
+
                          log <- db_ms$update(query, update)
-                    }, .collate = "list", .to = "log")
-               browser()
-               #TODO: faire la modif de ms_data selon le resulat de log
-               #il va falloir faire un autre by_row...
+
+                         if (log$modifiedCount == 1) {
+
+                              x <- ms_data() %>%
+                                   mutate(row_nb = row_number()) %>%
+                                   filter( (Molecule %in% input$molecules) & (Name %in% input$samples) )
+                              x[sample$row_nb, ]$Tags <- sample$Tags[[1]] %>%
+                              {
+                                   if (added) append(.,tags_to_add)
+                                   else keep(., ~!. %in% tags_to_remove)
+                              } %>% list()
+                              ms_data(x)
+                         }
+
+                         ifelse(log$modifiedCount == 1, TRUE, FALSE)
+                    }, .collate = "list", .to = "modified")
                progress$close()
+
           }
      }, priority = -1)
 
@@ -379,7 +425,8 @@ ms_data_display_server <- function(input, output, session,
           if (is.null(display_tbl()) || nrow(display_tbl()) == 0) return()
 
           g <- ggplot(display_tbl()) +
-               aes(x = Name, y = Mean, fill = Molecule) +
+               aes(x = if_else(n == 1, Name, paste0(Name, " - ", rank)),
+                   y = Mean, fill = Molecule) +
                geom_bar(position = "dodge",
                         stat = "identity",
                         aes(alpha = cut_off %>%
@@ -417,9 +464,10 @@ ms_data_display_server <- function(input, output, session,
      output$x_val <- renderText({
           if (is.null(clicked_sample())) return()
           else {
-               HTML("You've selected sample <code>", clicked_sample()$name, "</code>",
+               HTML("You've selected sample <code>", clicked_sample()$Name, "</code>",
                     "<br>and molecule <code>", clicked_sample()$molecule,"</code>",
-                    "<br>of value <code>", round(clicked_sample()$value,2), "</code>")
+                    "<br>of value <code>", round(clicked_sample()$value,2), "</code>",
+                    "<br>of file <code>", clicked_sample()$xml, "</code>")
           }
      })
 

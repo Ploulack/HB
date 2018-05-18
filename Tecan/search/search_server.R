@@ -111,6 +111,12 @@ search_server <- function(input, output, session) {
                with_samples = TRUE
           )
 
+          #If db search failed, let's stop here...
+          if (res %>% nrow() == 0) {
+               return()
+               cat("db retrieve of samples failed.. \n")
+               }
+
           results$with_samples <- bind_cols(
                select(res, -data),
                res$data) %>%
