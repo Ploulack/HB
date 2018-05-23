@@ -26,6 +26,7 @@ gel_server <- function(input, output, session, gtoken) {
 
         #function to get files list
         choiceFiles <- reactive({
+             browser()
                 input$refresh
                 gel_pics$files <- get_ordered_filenames_from_drive(
                         as_id(pics_folder_url),

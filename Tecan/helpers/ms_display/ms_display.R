@@ -87,7 +87,8 @@ ms_data_display_server <- function(input, output, session,
      })
 
      observeEvent(c(go_button(), input$show_blanks), {
-          if (is.null(ms_tbl())) return()
+          if (is.null(ms_tbl()) || ms_tbl() %>% nrow() == 0) return()
+          browser()
 
           if (type == "search" || (input$show_blanks %||% FALSE)) {
                ms_data(ms_tbl())
@@ -161,16 +162,13 @@ ms_data_display_server <- function(input, output, session,
 
      unaggregated_tbl <- reactive({
           if (any(is.null(c(input$samples, input$molecules)))) return()
-
+browser()
           res_tbl <- ms_data() %>%
                select(c(Name, Molecule, Concentration, Tags, sample_id, xml)) %>%
                mutate(Tags = Tags %>%
                            map_chr(~ str_c(., collapse = ", ")) %>%
                            str_remove("^(,\\s*)")
                ) %>%
-               # This is not correct: this grouping here is then used by the diplay_tbl for mean/sd calculcation.
-               # But this only considers unique samples.
-               # TODO: find an xml with some grouping and test proper cross-sample grouping
                group_by(Name, sample_id, Molecule) %>%
                arrange(Name) %>%
                filter(sample_id %in% input$samples) %>%
@@ -180,7 +178,6 @@ ms_data_display_server <- function(input, output, session,
      })
 
      observeEvent(unaggregated_tbl(), {
-          browser()
           display_tbl(unaggregated_tbl() %>%
                            summarise(sd = sd(Concentration),
                                      Mean = mean(Concentration),
@@ -194,6 +191,7 @@ ms_data_display_server <- function(input, output, session,
           )
      }, priority = -1)
 
+     #### CLICKED SAMPLE ####
      observeEvent(input$click, {
           if (!is.null(input$click)) last_click(input$click)
      })
@@ -227,7 +225,7 @@ ms_data_display_server <- function(input, output, session,
 
           display_tbl() %>%
                filter(Molecule == clicked_molecule & sample_id == clicked_sample_id) %>%
-               rename(value = Mean, molecule = Molecule)
+               rename(value = Mean)
 
      }, ignoreNULL = FALSE)
 
@@ -285,7 +283,7 @@ ms_data_display_server <- function(input, output, session,
 
           clicked_data <- ms_data() %>%
                mutate(row_nb = row_number()) %>%
-               filter(Name %in% clicked_sample()$name & Molecule %in% clicked_sample()$molecule)
+               filter(Name %in% clicked_sample()$Name & Molecule %in% clicked_sample()$Molecule)
 
           clicked_data_tags <- clicked_data %>%
                pull(Tags) %>%
@@ -343,13 +341,14 @@ ms_data_display_server <- function(input, output, session,
           )
      })
 
-     observeEvent(c(input$selected_samples_tags, input$samples, input$molecules), {
+     observeEvent(input$selected_samples_tags, {
           input_tags <- input$selected_samples_tags
 
           tags_to_add <- input_tags[!(input_tags %in% common_tags())]
           tags_to_remove <- common_tags()[!(common_tags() %in% input_tags)]
 
-          if (!c(tags_to_add, tags_to_remove) %>% is_empty()) {
+          if ( !c(tags_to_add, tags_to_remove) %>% is_empty() ) {
+
                progress <- shiny::Progress$new()
                temp_data <- ms_data() %>%
                     mutate(row_nb = row_number()) %>%
@@ -357,7 +356,7 @@ ms_data_display_server <- function(input, output, session,
                inc <- 1/nrow(temp_data)
 
                added <- NULL
-
+               browser()
                temp_data <- temp_data %>%
                     by_row(~{
                          sample <- .
@@ -370,6 +369,7 @@ ms_data_display_server <- function(input, output, session,
                                    }')
 
                          if (!tags_to_add %>% is_empty()) {
+                              if (tags_to_add == "") return()
                               added <- TRUE
                               tags_to_add_json <- tags_to_add %>% jsonlite::toJSON()
                               progress$inc(inc, str_interp("Adding ${tags_to_add %>% str_c(collapse = ', ')} to ${sample$Name}."))
@@ -383,6 +383,7 @@ ms_data_display_server <- function(input, output, session,
 
                               #If db was changed, update the current table (obtained from the 'display samples' button)
                          } else if (!tags_to_remove %>% is_empty()) {
+                              if (tags_to_remove == "") return()
                               added <- FALSE
                               tags_to_remove_json <- tags_to_remove %>% jsonlite::toJSON()
                               progress$inc(inc, str_interp("Removing ${tags_to_remove %>% str_c(collapse = ', ')} tags in ${sample$Name}."))
@@ -396,15 +397,15 @@ ms_data_display_server <- function(input, output, session,
                          log <- db_ms$update(query, update)
 
                          if (log$modifiedCount == 1) {
-
+browser()
                               x <- ms_data() %>%
-                                   mutate(row_nb = row_number()) %>%
-                                   filter( (Molecule %in% input$molecules) & (Name %in% input$samples) )
+                                   mutate(row_nb = row_number())
                               x[sample$row_nb, ]$Tags <- sample$Tags[[1]] %>%
                               {
                                    if (added) append(.,tags_to_add)
                                    else keep(., ~!. %in% tags_to_remove)
                               } %>% list()
+
                               ms_data(x)
                          }
 
@@ -413,7 +414,7 @@ ms_data_display_server <- function(input, output, session,
                progress$close()
 
           }
-     }, priority = -1)
+     }, priority = -1, ignoreNULL = FALSE, ignoreInit = TRUE)
 
      #### GRAPHS ####
 
@@ -437,6 +438,7 @@ ms_data_display_server <- function(input, output, session,
                              aes(ymax = Mean + sd,
                                  ymin = Mean - sd,
                                  width = .15)) +
+               labs(x = "Sample names", y = "Concentration") +
                theme(axis.text.x = element_text(angle = 60,
                                                 hjust = .8,
                                                 size = 10,
@@ -465,7 +467,7 @@ ms_data_display_server <- function(input, output, session,
           if (is.null(clicked_sample())) return()
           else {
                HTML("You've selected sample <code>", clicked_sample()$Name, "</code>",
-                    "<br>and molecule <code>", clicked_sample()$molecule,"</code>",
+                    "<br>and molecule <code>", clicked_sample()$Molecule,"</code>",
                     "<br>of value <code>", round(clicked_sample()$value,2), "</code>",
                     "<br>of file <code>", clicked_sample()$xml, "</code>")
           }

@@ -50,8 +50,10 @@ get_ordered_filenames_from_drive <- function(drive_dir,
                                    ms = ".xml$")
 
         drive_ls(path = drive_dir, pattern = filename_pattern) %>%
-                mutate(exp_date = file_date(name, type, drive_resource)) %>%
-                arrange(desc(exp_date))
+             mutate(exp_date = .$drive_resource %>%
+                         map_chr("createdTime") %>%
+                         ymd_hms(tz = "America/Montreal")) %>%
+             arrange(desc(exp_date))
 }
 
 
