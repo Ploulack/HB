@@ -1,11 +1,15 @@
 library(rvest); library(lubridate)
 
 
-extract_ms <- function(input_file, dribble) {#Are we using that dribble at all?
+extract_ms <- function(input_file, dribble) {
+
      download_drive_file(input_file = input_file) %>%
           read_xml() %>%
           extract_ms_data() %>%
-          mutate(`_id` = input_file)
+          mutate(`_id` = input_file,
+                 xml = dribble %>%
+                      filter(id == input_file) %>%
+                      pull(name))
 }
 
 substract_blanks <- function(res) {
@@ -71,7 +75,7 @@ extract_ms_data <- function(xml) {
                     pull(analconc)
           ) %>%
           mutate(Concentration = as.double(Concentration),
-                 Molecule = as.factor(Molecule)) %>%
+                 Molecule = as.factor(Molecule)) %>% #Why as.factor?
           left_join(samples_info, by = "sampleid") %>%
           substract_blanks() %>%
           filter(!type %>% str_detect("(?i)Standard"))

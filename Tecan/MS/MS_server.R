@@ -261,7 +261,8 @@ ms_server <- function(input, output, session) {
                          mutate(Tags = map2(Tags_xml, Tags_db, ~{
                               c(.x, .y) %>% unique()}),
                               Molecule = as_factor(Molecule)
-                         )
+                         ) %>%
+                         select(-Tags_xml, -Tags_db)
                )
           }
           file_record(record)

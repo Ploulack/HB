@@ -86,15 +86,18 @@ ms_data_display_server <- function(input, output, session,
           }
      })
 
-     observeEvent(c(go_button(), input$show_blanks), {
-          if (is.null(ms_tbl()) || ms_tbl() %>% nrow() == 0) return()
-          browser()
+     observeEvent(c(ms_tbl(), input$show_blanks), {
+
+          if (is.null(ms_tbl()) ||
+              ms_tbl() %>% nrow() == 0) return()
 
           if (type == "search" || (input$show_blanks %||% FALSE)) {
                ms_data(ms_tbl())
           }
           else {
-               ms_data(ms_tbl() %>% filter(type == "Analyte"))
+               ms_data(
+                    ms_tbl() %>% filter(str_detect(type, "(?i)analyte"))
+                    )
           }
           if (ms_data() %>% nrow() > 0) {
                #For entries prior to Tag feature, we replace the character(0) with empty string
@@ -115,9 +118,9 @@ ms_data_display_server <- function(input, output, session,
                          }
                )
           }
-     })
+     }, priority = 10)
 
-     observeEvent(c(go_button(), input$show_blanks), {
+     observeEvent(c(sample_choices(), input$show_blanks), {
 
           if (is.null(ms_data())) return()
 
@@ -162,7 +165,7 @@ ms_data_display_server <- function(input, output, session,
 
      unaggregated_tbl <- reactive({
           if (any(is.null(c(input$samples, input$molecules)))) return()
-browser()
+
           res_tbl <- ms_data() %>%
                select(c(Name, Molecule, Concentration, Tags, sample_id, xml)) %>%
                mutate(Tags = Tags %>%
@@ -178,28 +181,31 @@ browser()
      })
 
      observeEvent(unaggregated_tbl(), {
-          display_tbl(unaggregated_tbl() %>%
-                           summarise(sd = sd(Concentration),
-                                     Mean = mean(Concentration),
-                                     xml = unique(xml)) %>%
-                           ungroup() %>%
-                           mutate(cut_off = if (is.null(clicked_sample())) TRUE else display_tbl()$cut_off) %>%
-                           group_by(Name) %>%
-                           add_count() %>%
-                           mutate(rank = row_number()) %>%
-                           ungroup()
+
+          display_tbl(
+               unaggregated_tbl() %>%
+                    summarise(sd = sd(Concentration),
+                              Mean = mean(Concentration),
+                              xml = unique(xml)) %>%
+                    ungroup() %>%
+                    mutate(cut_off = if (is.null(clicked_sample())) TRUE
+                           else Mean >= clicked_sample()$value) %>%
+                    group_by(Name) %>%
+                    add_count() %>%
+                    mutate(rank = row_number()) %>%
+                    ungroup()
           )
      }, priority = -1)
 
      #### CLICKED SAMPLE ####
      observeEvent(input$click, {
           if (!is.null(input$click)) last_click(input$click)
-     })
+     }, priority = 10)
 
      #On file change reset the value selection from click
      observeEvent(c(go_button(), input$clear_selected_sample), {
           last_click(NULL)
-     })
+     }, priority = 10)
 
      clicked_sample <- eventReactive(last_click(), {
           if (is.null(last_click())) return(NULL)
@@ -238,6 +244,7 @@ browser()
                          mutate(cut_off = TRUE)
                )
           } else {
+
                display_tbl(
                     display_tbl() %>%
                          mutate(cut_off = if_else(
@@ -248,13 +255,12 @@ browser()
                          )
                )
           }
-     }, ignoreNULL = FALSE, priority = 10)
+     }, ignoreNULL = FALSE, priority = 9)
 
      #### TAGS ####
 
      output$tags_widget <- renderUI({
           if (nrow(ms_data()) == 0 || is.null(clicked_sample())) return()
-
 
           selectizeInput(inputId = ns("tags"),
                          label = "Tags",
@@ -274,23 +280,32 @@ browser()
 
      observeEvent(input$tags,{
 
-          tags <- input$tags %||% "" %>%
+          input_tags <- (input$tags %||% "") %>% sort()
+
+          clicked_data <- ms_data() %>%
+               mutate(row_nb = row_number()) %>%
+               filter(Name %in% clicked_sample()$Name & Molecule %in% clicked_sample()$Molecule)
+
+          clicked_data_tags <- clicked_data$Tags %>%
+               unlist() %>%
+               sort()
+
+          current_ms_data_tags <- ms_data()[clicked_data$row_nb, ]$Tags %>%
+                   unlist() %>%
+                   sort()
+
+          if (length(current_ms_data_tags) == length(input_tags) &&
+              current_ms_data_tags == input_tags) return()
+
+          tags <- input_tags %>%
                map_chr(~ str_interp('"${.}"'))
 
           tags <- str_interp('${str_c(tags, collapse = ", ")}')
 
           tags_add(db = db_tags, tags = tags)
 
-          clicked_data <- ms_data() %>%
-               mutate(row_nb = row_number()) %>%
-               filter(Name %in% clicked_sample()$Name & Molecule %in% clicked_sample()$Molecule)
 
-          clicked_data_tags <- clicked_data %>%
-               pull(Tags) %>%
-               unlist() %>%
-               sort()
-
-          if (!(input$tags %||% "" %>% sort() == clicked_data_tags) %>% all()) {
+          if (!(input_tags == clicked_data_tags) %>% all()) {
                tags_json <- input$tags %||% "" %>%
                     jsonlite::toJSON()
 
@@ -306,9 +321,9 @@ browser()
 
 
                if (ms_data() %>% nrow() > 0 && upd_log$modified == 1) {
-                    browser()
+
                     tmp_ms_data <- ms_data()
-                    tmp_ms_data$Tags[clicked_data$row_nb] <- list(input$tags %||% "")
+                    tmp_ms_data$Tags[clicked_data$row_nb] <- list(input_tags)
                     ms_data(tmp_ms_data)
                }
           }
@@ -356,7 +371,7 @@ browser()
                inc <- 1/nrow(temp_data)
 
                added <- NULL
-               browser()
+
                temp_data <- temp_data %>%
                     by_row(~{
                          sample <- .
@@ -397,7 +412,7 @@ browser()
                          log <- db_ms$update(query, update)
 
                          if (log$modifiedCount == 1) {
-browser()
+n
                               x <- ms_data() %>%
                                    mutate(row_nb = row_number())
                               x[sample$row_nb, ]$Tags <- sample$Tags[[1]] %>%
@@ -426,13 +441,14 @@ browser()
           if (is.null(display_tbl()) || nrow(display_tbl()) == 0) return()
 
           g <- ggplot(display_tbl()) +
-               aes(x = if_else(n == 1, Name, paste0(Name, " - ", rank)),
+               aes(x = Name,
                    y = Mean, fill = Molecule) +
-               geom_bar(position = "dodge",
-                        stat = "identity",
-                        aes(alpha = cut_off %>%
-                                 factor(levels = c(FALSE, TRUE))
-                        )
+               geom_bar(
+                    position = "dodge",
+                    stat = "identity",
+                    aes(alpha = cut_off %>%
+                             factor(levels = c(FALSE, TRUE))
+                    )
                ) +
                geom_errorbar(position = position_dodge(.9),
                              aes(ymax = Mean + sd,
@@ -467,7 +483,7 @@ browser()
           if (is.null(clicked_sample())) return()
           else {
                HTML("You've selected sample <code>", clicked_sample()$Name, "</code>",
-                    "<br>and molecule <code>", clicked_sample()$Molecule,"</code>",
+                    "<br>and molecule <code>", clicked_sample()$Molecule %>% as.character(),"</code>",
                     "<br>of value <code>", round(clicked_sample()$value,2), "</code>",
                     "<br>of file <code>", clicked_sample()$xml, "</code>")
           }
