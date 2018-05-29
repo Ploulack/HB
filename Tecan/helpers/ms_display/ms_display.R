@@ -146,8 +146,6 @@ ms_data_display_server <- function(input, output, session,
                pull(sample_id) %>%
                unique()
 
-
-
           updateCheckboxGroupInput(session = session,
                                    inputId = "samples",
                                    selected = sample_choices() %>%
@@ -169,7 +167,7 @@ ms_data_display_server <- function(input, output, session,
           res_tbl <- ms_data() %>%
                select(c(Name, Molecule, Concentration, Tags, sample_id, xml)) %>%
                mutate(Tags = Tags %>%
-                           map_chr(~ str_c(., collapse = ", ")) %>%
+                           map_chr(~ {if (is_empty(.)) "" else .} %>% str_c(collapse = ", ")) %>%
                            str_remove("^(,\\s*)")
                ) %>%
                group_by(Name, sample_id, Molecule) %>%
@@ -188,8 +186,8 @@ ms_data_display_server <- function(input, output, session,
                               Mean = mean(Concentration),
                               xml = unique(xml)) %>%
                     ungroup() %>%
-                    mutate(cut_off = if (is.null(clicked_sample())) TRUE
-                           else Mean >= clicked_sample()$value) %>%
+                    mutate(cut_off = if (is.null(clicked_sample())) FALSE
+                           else Mean < clicked_sample()$value) %>%
                     group_by(Name) %>%
                     add_count() %>%
                     mutate(rank = row_number()) %>%
@@ -221,9 +219,9 @@ ms_data_display_server <- function(input, output, session,
           clicked_sample_id <- sample_lvls[round(click_x)]
 
           molecule_lvls <- display_tbl()$Molecule %>%
-               as_factor() %>%
-               droplevels() %>%
-               levels()
+               as.character() %>%
+               unique() %>%
+               sort()
 
           x <- click_x - round(click_x) + 1/2
 
@@ -241,14 +239,14 @@ ms_data_display_server <- function(input, output, session,
           if (is.null(clicked_sample()$value)) {
                display_tbl(
                     display_tbl() %>%
-                         mutate(cut_off = TRUE)
+                         mutate(cut_off = FALSE)
                )
           } else {
 
                display_tbl(
                     display_tbl() %>%
                          mutate(cut_off = if_else(
-                              Mean >= clicked_sample()$value,
+                              Mean < clicked_sample()$value,
                               TRUE,
                               FALSE,
                               missing = FALSE)
@@ -412,7 +410,6 @@ ms_data_display_server <- function(input, output, session,
                          log <- db_ms$update(query, update)
 
                          if (log$modifiedCount == 1) {
-n
                               x <- ms_data() %>%
                                    mutate(row_nb = row_number())
                               x[sample$row_nb, ]$Tags <- sample$Tags[[1]] %>%
@@ -442,14 +439,10 @@ n
 
           g <- ggplot(display_tbl()) +
                aes(x = Name,
-                   y = Mean, fill = Molecule) +
-               geom_bar(
-                    position = "dodge",
-                    stat = "identity",
-                    aes(alpha = cut_off %>%
-                             factor(levels = c(FALSE, TRUE))
-                    )
-               ) +
+                   y = Mean, fill = Molecule %>% {factor(., levels = sort(unique(as.character(.))))},
+                   alpha = cut_off %>% factor(levels = c(TRUE, FALSE))
+                   ) +
+               geom_bar( position = "dodge", stat = "identity") +
                geom_errorbar(position = position_dodge(.9),
                              aes(ymax = Mean + sd,
                                  ymin = Mean - sd,
@@ -458,10 +451,13 @@ n
                theme(axis.text.x = element_text(angle = 60,
                                                 hjust = .8,
                                                 size = 10,
-                                                face = if_else(display_tbl()$cut_off,"bold", "plain")),
+                                                face = if_else(display_tbl() %>%
+                                                                    group_by(Name) %>%
+                                                                    summarise(cut_off = any(!cut_off)) %>%
+                                                                    pull(cut_off), "bold", "plain")),
                      legend.position = c(.9, .85)) +
                scale_y_continuous(trans = barplot_scale()) +
-               scale_fill_discrete(limits = levels(ms_data()$Molecule)) +
+               # scale_fill_discrete(limits = levels(ms_data()$Molecule)) +
                scale_alpha_discrete(drop = FALSE, guide = "none")
 
           if (!is.null(clicked_sample()$value)) {
